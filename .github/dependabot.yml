@@ -10,6 +10,11 @@ updates:
       timezone: Europe/London
     cooldown:
       default-days: 7
+    ignore:
+      # Keep Node's type definitions on the same major version as .node-version (24).
+      # Upgrade both together, by hand, when moving to a newer Node.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore
