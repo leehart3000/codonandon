@@ -7,8 +7,8 @@ Sentry.init({
 	// Only report from the live site, never from local development or automated tests.
 	enabled: location.hostname === 'tetraminos.hartsoft.dev',
 
-	// Errors only for now: no performance tracing or session replay.
-	tracesSampleRate: 0,
+	// No tracesSampleRate: setting it (even to 0) enables Sentry's navigation tracing,
+	// which currently breaks on SvelteKit 3 (app_stores_removed). Errors only for now.
 
 	// Don't collect personal data such as IP addresses.
 	dataCollection: { userInfo: false }
