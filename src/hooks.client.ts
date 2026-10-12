@@ -1,5 +1,8 @@
-import * as Sentry from '@sentry/sveltekit';
+import * as Sentry from '@sentry/svelte';
+import type { HandleClientError } from '@sveltejs/kit/hooks';
 
+// We use @sentry/svelte rather than @sentry/sveltekit: the SvelteKit package's
+// default add-ons still use $app/stores, which SvelteKit 3 removed (app_stores_removed).
 Sentry.init({
 	// Where error reports are sent. Public by design: it can only send, never read.
 	dsn: 'https://4242b0dcd2cf3887903e30b48599282c@o4511932249341952.ingest.de.sentry.io/4512244695236688',
@@ -7,11 +10,13 @@ Sentry.init({
 	// Only report from the live site, never from local development or automated tests.
 	enabled: location.hostname === 'tetraminos.hartsoft.dev',
 
-	// No tracesSampleRate: setting it (even to 0) enables Sentry's navigation tracing,
-	// which currently breaks on SvelteKit 3 (app_stores_removed). Errors only for now.
-
 	// Don't collect personal data such as IP addresses.
 	dataCollection: { userInfo: false }
 });
 
-export const handleError = Sentry.handleErrorWithSentry();
+// Report unexpected errors that SvelteKit catches itself, such as failures while loading
+// a page. Skip 404s ('framework') and errors raised on purpose ('app'): they aren't bugs.
+// Errors elsewhere, such as in button clicks, are caught by Sentry automatically.
+export const handleError: HandleClientError = ({ kind, error }) => {
+	if (kind === 'unknown') Sentry.captureException(error);
+};
