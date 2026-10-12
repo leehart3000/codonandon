@@ -7,7 +7,7 @@
 		"dev": "vite dev",
 		"build": "wrangler types --check && vite build",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
-		"prepare": "svelte-kit sync || echo ''",
+		"prepare": "husky",
 		"check": "rm -rf .svelte-kit/cloudflare && wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
@@ -30,6 +30,8 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.6.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.6.0",
 		"playwright": "^1.60.0",
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
@@ -47,5 +49,12 @@
 	"imports": {
 		"#lib": "./src/lib/index.js",
 		"#lib/*": "./src/lib/*"
+	},
+	"lint-staged": {
+		"*.{js,ts,svelte}": [
+			"eslint --fix --no-warn-ignored",
+			"prettier --write"
+		],
+		"*.{json,md,yml,yaml,css,html}": "prettier --write"
 	}
 }
