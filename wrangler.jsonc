@@ -10,7 +10,5 @@
 	},
 	"workers_dev": true,
 	"preview_urls": true,
-	"routes": [
-		{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }
-	]
+	"routes": [{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }]
 }

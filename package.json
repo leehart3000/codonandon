@@ -51,10 +51,10 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"lint-staged": {
-		"*.{js,ts,svelte}": [
+		"*.{js,cjs,mjs,ts,mts,svelte}": [
 			"eslint --fix --no-warn-ignored",
 			"prettier --write"
 		],
-		"*.{json,md,yml,yaml,css,html}": "prettier --write"
+		"*.{json,jsonc,md,yml,yaml,css,html}": "prettier --write"
 	}
 }
