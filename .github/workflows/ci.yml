@@ -45,8 +45,22 @@ jobs:
       - name: Browser tests (Playwright)
         run: pnpm run test:e2e
 
+  secret-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get the code (with full history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Scan for leaked secrets (TruffleHog)
+        uses: trufflesecurity/trufflehog@v3.99.2
+        with:
+          extra_args: --results=verified,unknown
+
   deploy:
-    needs: check-and-test
+    needs: [check-and-test, secret-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
