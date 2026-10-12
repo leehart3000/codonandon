@@ -58,5 +58,8 @@
 			"prettier --write"
 		],
 		"*.{json,jsonc,md,yml,yaml,css,html}": "prettier --write"
+	},
+	"dependencies": {
+		"@sentry/sveltekit": "^11.6.0"
 	}
 }
