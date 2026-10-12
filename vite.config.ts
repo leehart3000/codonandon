@@ -13,7 +13,11 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter({
+				// During tests, keep simulator storage in memory so test groups don't
+				// lock the same database file. Normal dev still saves to .wrangler/state.
+				platformProxy: { persist: !process.env.VITEST }
+			})
 		})
 	],
 	test: {
