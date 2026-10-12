@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "rm -rf .svelte-kit/cloudflare && wrangler types --check && vite build",
+		"deploy": "pnpm run build && wrangler deploy",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
 		"prepare": "husky",
 		"check": "rm -rf .svelte-kit/cloudflare && wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
