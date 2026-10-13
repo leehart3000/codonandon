@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { playState } from './play-state.svelte.js';
 
 	// True when a new version has been downloaded and is waiting to take over.
 	let updateReady = $state(false);
@@ -58,7 +59,7 @@
 	}
 </script>
 
-{#if updateReady}
+{#if updateReady && !playState.playing}
 	<div
 		role="status"
 		class="fixed inset-x-0 bottom-0 flex items-center justify-center gap-3 bg-slate-800 p-3 text-white"

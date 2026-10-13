@@ -4,6 +4,7 @@
 	import { createGame, fallInterval, type Action, type ClearReport } from '#lib/game/game.js';
 	import type { Piece } from '#lib/game/pieces.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
+	import { playState } from '#lib/play-state.svelte.js';
 
 	/** Size of one square, in pixels. */
 	const CELL = 28;
@@ -29,21 +30,26 @@
 	/** A fresh random seed for each new game. */
 	const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
 
-	let game = createGame({ seed: randomSeed() });
+	let game = createGame({ seed: 1 });
 	let view = $state.raw(game.state);
+	/** True once the page's code is running, so buttons work when they appear. */
+	let mounted = $state(false);
+	let started = $state(false);
 	let paused = $state(false);
 	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
 
-	function restart() {
+	/** Start a new game with a fresh seed. */
+	function start() {
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
 		log = [];
 		paused = false;
+		started = true;
 	}
 
 	function act(action: Action) {
-		if (paused) return;
+		if (!started || paused) return;
 		const result = game.act(action);
 		view = game.state;
 		if (result.clear) describeClear(result.clear);
@@ -84,14 +90,30 @@
 	}
 
 	function onKeydown(event: KeyboardEvent) {
+		if (!mounted) return;
+
+		if (!started) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				start();
+			}
+			return;
+		}
+
 		if (event.key === 'p') {
 			if (!view.over) paused = !paused;
 			return;
 		}
+
 		const action = KEYS[event.key];
 		if (!action) return;
 		event.preventDefault();
 		act(action);
+	}
+
+	/** Pause automatically when the player switches to another tab or app. */
+	function onVisibilityChange() {
+		if (document.visibilityState === 'hidden' && started && !view.over) paused = true;
 	}
 
 	/** Draw the board and the piece in play. */
@@ -112,6 +134,8 @@
 			context.fillStyle = column % 3 === 0 ? '#334155' : '#1e293b';
 			context.fillRect(column * CELL, 0, 1, BOARD_HEIGHT * CELL);
 		}
+
+		if (!started) return;
 
 		view.board.forEach((row, y) =>
 			row.forEach((base, x) => {
@@ -140,11 +164,21 @@
 	// Redraw whenever the game changes.
 	$effect(() => {
 		void view;
+		void started;
 		draw();
+	});
+
+	// Tell the rest of the app whether a game is in progress.
+	$effect(() => {
+		playState.playing = started && !paused && !view.over;
+		return () => {
+			playState.playing = false;
+		};
 	});
 
 	// The automatic fall, timed by the level.
 	onMount(() => {
+		mounted = true;
 		let last = performance.now();
 		let waited = 0;
 		let frame = 0;
@@ -152,7 +186,7 @@
 		function loop(now: number) {
 			const elapsed = now - last;
 			last = now;
-			if (!paused && !game.state.over) {
+			if (started && !paused && !game.state.over) {
 				waited += elapsed;
 				if (waited >= fallInterval(game.state.score.level)) {
 					waited = 0;
@@ -168,6 +202,7 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 {#snippet pieceGrid(piece: Piece)}
 	<div class="grid w-fit gap-0.5" style:grid-template-columns="repeat({piece.size}, 1.25rem)">
@@ -191,11 +226,28 @@
 			bind:this={canvas}
 			style:width="{BOARD_WIDTH * CELL}px"
 			style:height="{BOARD_HEIGHT * CELL}px"
-			role="img"
-			aria-label="Game board"
-		></canvas>
+		>
+			Game board. The score, next piece and chain are listed beside it.
+		</canvas>
 
-		{#if view.over}
+		{#if !started}
+			<div
+				class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+			>
+				{#if mounted}
+					<button
+						type="button"
+						class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
+						onclick={start}
+					>
+						Start
+					</button>
+					<p class="text-sm">or press Enter</p>
+				{:else}
+					<p>Loading…</p>
+				{/if}
+			</div>
+		{:else if view.over}
 			<div
 				class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
 			>
@@ -204,7 +256,7 @@
 				<button
 					type="button"
 					class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
-					onclick={restart}
+					onclick={start}
 				>
 					Play again
 				</button>
@@ -228,10 +280,12 @@
 			<dd class="text-right font-mono">{view.stats.chains}</dd>
 		</dl>
 
-		<section>
-			<h2 class="font-semibold">Next</h2>
-			{@render pieceGrid(view.next)}
-		</section>
+		{#if started}
+			<section>
+				<h2 class="font-semibold">Next</h2>
+				{@render pieceGrid(view.next)}
+			</section>
+		{/if}
 
 		<section>
 			<h2 class="font-semibold">Chain</h2>

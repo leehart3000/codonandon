@@ -14,3 +14,11 @@ test('web app manifest uses the app settings', async ({ request }) => {
 	expect(manifest.name).toBe(APP.name);
 	expect(manifest.theme_color).toBe(APP.themeColor);
 });
+
+test('the game waits for the player to press Start', async ({ page }) => {
+	await page.goto('/');
+	const start = page.getByRole('button', { name: 'Start' });
+	await expect(start).toBeVisible();
+	await start.click();
+	await expect(start).toBeHidden();
+});
