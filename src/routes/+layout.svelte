@@ -2,6 +2,7 @@
 	import './layout.css';
 	import { APP } from '#lib/config.js';
 	import type { LayoutProps } from './$types';
+	import UpdateNotice from '#lib/UpdateNotice.svelte';
 
 	let { children }: LayoutProps = $props();
 </script>
@@ -20,3 +21,4 @@
 	</a>
 	(AGPL-3.0-only)
 </footer>
+<UpdateNotice />
