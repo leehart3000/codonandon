@@ -11,7 +11,9 @@ export const SCORING = {
 	/** An unfinished chain at game over: per amino acid, not multiplied by the level. */
 	unfinishedPerAminoAcid: 10,
 	/** Rows to clear to go up a level. */
-	rowsPerLevel: 10
+	rowsPerLevel: 10,
+	/** While a chain is open, cleared rows score this many times more. */
+	openChainMultiplier: 2
 } as const;
 
 export interface ScoreState {
@@ -39,14 +41,17 @@ export function unfinishedChainPoints(chain: readonly AminoAcid[] | null): numbe
 
 /**
  * Score one clear: the rows cleared together, plus a bonus for each chain completed
- * while reading them. Points use the level before the clear.
+ * while reading them. Points use the level before the clear. If a chain was already
+ * open when the rows were cleared, row points are multiplied.
  */
 export function scoreClear(
 	state: ScoreState,
 	rowsCleared: number,
-	events: readonly ReadEvent[]
-): { state: ScoreState; rowPoints: number; chainPoints: number } {
-	const rowPoints = (SCORING.rows[rowsCleared] ?? 0) * state.level;
+	events: readonly ReadEvent[],
+	chainOpen = false
+): { state: ScoreState; rowPoints: number; chainPoints: number; multiplier: number } {
+	const multiplier = chainOpen ? SCORING.openChainMultiplier : 1;
+	const rowPoints = (SCORING.rows[rowsCleared] ?? 0) * state.level * multiplier;
 	const chainPoints = events.reduce(
 		(sum, event) =>
 			event.type === 'complete' ? sum + chainBonus(event.chain.length, state.level) : sum,
@@ -56,6 +61,7 @@ export function scoreClear(
 	return {
 		state: { score: state.score + rowPoints + chainPoints, rows, level: levelFor(rows) },
 		rowPoints,
-		chainPoints
+		chainPoints,
+		multiplier
 	};
 }

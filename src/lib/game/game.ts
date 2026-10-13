@@ -56,6 +56,8 @@ export interface ClearReport {
 	events: ReadEvent[];
 	rowPoints: number;
 	chainPoints: number;
+	/** Row points were multiplied by this, because a chain was open. */
+	multiplier: number;
 }
 
 /** What an action caused, for the display, animations and sounds to react to. */
@@ -134,8 +136,9 @@ export function createGame(options: GameOptions) {
 		let clear: ClearReport | null = null;
 
 		if (cleared.length > 0) {
+			const chainOpen = translation.chain !== null;
 			const read = readRows(translation, cleared);
-			const scored = scoreClear(score, cleared.length, read.events);
+			const scored = scoreClear(score, cleared.length, read.events, chainOpen);
 			translation = read.state;
 			score = scored.state;
 			stats = updateStats(stats, read.events);
@@ -143,7 +146,8 @@ export function createGame(options: GameOptions) {
 				rows: cleared,
 				events: read.events,
 				rowPoints: scored.rowPoints,
-				chainPoints: scored.chainPoints
+				chainPoints: scored.chainPoints,
+				multiplier: scored.multiplier
 			};
 		}
 

@@ -70,4 +70,11 @@ describe('scoring', () => {
 			expect(unfinished).toBeLessThan(chainBonus(length, 1));
 		}
 	});
+
+	it('multiplies row points while a chain is open', () => {
+		const result = scoreClear(initialScore, 1, [], true);
+		expect(result.multiplier).toBe(SCORING.openChainMultiplier);
+		expect(result.rowPoints).toBe(SCORING.rows[1] * SCORING.openChainMultiplier);
+		expect(scoreClear(initialScore, 1, [], false).multiplier).toBe(1);
+	});
 });

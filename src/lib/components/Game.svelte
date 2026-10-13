@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { BOARD_HEIGHT, BOARD_WIDTH } from '#lib/game/board.js';
 	import { createGame, fallInterval, type Action, type ClearReport } from '#lib/game/game.js';
+	import { chainBonus } from '#lib/game/scoring.js';
 	import type { Piece } from '#lib/game/pieces.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
@@ -65,7 +66,8 @@
 
 	function describeClear(clear: ClearReport) {
 		const rows = clear.rows.length;
-		const lines = [`${rows} row${rows === 1 ? '' : 's'} cleared: +${clear.rowPoints}`];
+		const doubled = clear.multiplier > 1 ? ` (×${clear.multiplier}, chain open)` : '';
+		const lines = [`${rows} row${rows === 1 ? '' : 's'} cleared: +${clear.rowPoints}${doubled}`];
 		for (const event of clear.events) {
 			switch (event.type) {
 				case 'start':
@@ -289,13 +291,19 @@
 
 		<section>
 			<h2 class="font-semibold">Chain</h2>
-			<p class="font-mono text-sm">
-				{#if view.translation.chain}
+			{#if view.translation.chain}
+				<p class="font-mono text-sm">
 					{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
-				{:else}
-					Waiting for AUG
+				</p>
+				<p class="text-sm font-semibold text-green-700">Chain open: rows score ×2</p>
+				{#if view.translation.chain.length >= 2}
+					<p class="text-sm">
+						Worth +{chainBonus(view.translation.chain.length, view.score.level)} if a stop comes now
+					</p>
 				{/if}
-			</p>
+			{:else}
+				<p class="text-sm">Waiting for AUG</p>
+			{/if}
 		</section>
 
 		<section>

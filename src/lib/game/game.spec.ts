@@ -93,6 +93,26 @@ describe('game', () => {
 		expect(filled(game.state.board)).toBe(0);
 	});
 
+	it('doubles row points while a chain is open, and banks the chain at a stop', () => {
+		// Bottom row: AUG GCU UGG GCA starts a chain (Met, Ala, Trp, Ala).
+		// The row above then becomes UAA CCU UGC CCC: its first codon is a stop.
+		const game = createGame({
+			seed: 1,
+			board: boardFrom(['UAAC....CCCC', 'AUGG....GGCA']),
+			nextPiece: () => iPiece('CUUG')
+		});
+
+		const first = game.act('drop');
+		expect(first.clear?.multiplier).toBe(1);
+		expect(game.state.translation.chain).toEqual(['M', 'A', 'W', 'A']);
+
+		const second = game.act('drop');
+		expect(second.clear?.multiplier).toBe(2);
+		expect(second.clear?.rowPoints).toBe(200);
+		expect(second.clear?.chainPoints).toBe(chainBonus(4, 1));
+		expect(game.state.translation.chain).toBeNull();
+	});
+
 	it('ends the game when a new piece no longer fits, then ignores moves', () => {
 		const game = createGame({ seed: 3 });
 		for (let i = 0; i < 500 && !game.state.over; i++) game.act('drop');
