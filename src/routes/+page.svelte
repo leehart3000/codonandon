@@ -3,4 +3,4 @@
 </script>
 
 <h1>{APP.name}</h1>
-<p>{APP.description} Coming soon.</p>
+<p>{APP.description} Coming soon!</p>
