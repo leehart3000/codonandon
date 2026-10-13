@@ -61,7 +61,9 @@ jobs:
 
   deploy:
     needs: [check-and-test, secret-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy only from main, and only in repos that have switched deploys on
+    # (Settings → Secrets and variables → Actions → Variables: DEPLOY_ENABLED = true).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-production

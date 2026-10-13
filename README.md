@@ -70,7 +70,7 @@ When starting a new app from this template:
 5. **Home page:** replace the content of `src/routes/+page.svelte`.
 6. **Web Analytics:** in Cloudflare, add the new hostname (manual setup), then replace the token in `src/app.html`.
 7. **Sentry:** create a project (platform SvelteKit), turn on "Prevent Storing of IP Addresses", then replace the DSN in `src/hooks.client.ts`.
-8. **Deploy token:** create a Cloudflare API token for this repo only (Workers Scripts: Edit, Account Settings: Read, Workers Routes: Edit on the zone, User Details: Read, Memberships: Read). Add GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+8. **Deploy token:** create a Cloudflare API token for this repo only (Workers Scripts: Edit, Account Settings: Read, Workers Routes: Edit on the zone, User Details: Read, Memberships: Read). Add GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then add the repository **variable** `DEPLOY_ENABLED` = `true` to switch deploys on.
 9. **GitHub security:** confirm Dependabot alerts, security updates, secret scanning and push protection are on.
 10. **This README:** update the title, description and live address.
 
