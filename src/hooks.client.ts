@@ -5,8 +5,9 @@ import { APP } from '#lib/config.js';
 // We use @sentry/svelte rather than @sentry/sveltekit: the SvelteKit package's
 // default add-ons still use $app/stores, which SvelteKit 3 removed (app_stores_removed).
 Sentry.init({
-	// Where error reports are sent. Public by design: it can only send, never read.
-	dsn: 'https://4242b0dcd2cf3887903e30b48599282c@o4511932249341952.ingest.de.sentry.io/4512244695236688',
+	// Where error reports are sent: paste your Sentry project's DSN here.
+	// While it's empty, Sentry stays switched off.
+	dsn: '',
 
 	// Only report from the live site, never from local development or automated tests.
 	enabled: location.hostname === APP.hostname,
