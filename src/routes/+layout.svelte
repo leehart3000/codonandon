@@ -15,5 +15,8 @@
 {@render children()}
 
 <footer>
-	<a href={APP.sourceUrl}>Source code</a> (AGPL-3.0-only)
+	<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
+		Source code <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
+	</a>
+	(AGPL-3.0-only)
 </footer>

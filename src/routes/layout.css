@@ -1,1 +1,18 @@
 @import 'tailwindcss';
+
+/* Tailwind removes default link styles, so make links clearly clickable. */
+@layer base {
+	a {
+		text-decoration-line: underline;
+		text-underline-offset: 0.15em;
+	}
+
+	a:hover {
+		text-decoration-thickness: 2px;
+	}
+
+	a:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 2px;
+	}
+}
