@@ -1,2 +1,2 @@
 <h1>Tetraminos</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<p>An educational falling-blocks game about mRNA, codons and amino acids. Coming soon.</p>
