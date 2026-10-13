@@ -73,3 +73,11 @@ When starting a new app from this template:
 8. **Deploy token:** create a Cloudflare API token for this repo only (Workers Scripts: Edit, Account Settings: Read, Workers Routes: Edit on the zone, User Details: Read, Memberships: Read). Add GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 9. **GitHub security:** confirm Dependabot alerts, security updates, secret scanning and push protection are on.
 10. **This README:** update the title, description and live address.
+
+## Licence
+
+Copyright © 2026 Lee Hart.
+
+The source code is licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only). If you run a modified version of this app for other people, including as a website, you must offer them your modified source code under the same licence, and keep this copyright notice.
+
+The name "Tetraminos" and the Tetraminos logo are not covered by this licence, and may not be used for modified versions without permission.

@@ -13,3 +13,7 @@
 </svelte:head>
 
 {@render children()}
+
+<footer>
+	<a href={APP.sourceUrl}>Source code</a> (AGPL-3.0-only)
+</footer>
