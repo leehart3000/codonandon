@@ -1,2 +1,6 @@
-<h1>Tetraminos</h1>
-<p>An educational falling-blocks game about mRNA, codons and amino acids. Coming soon.</p>
+<script lang="ts">
+	import { APP } from '#lib/config.js';
+</script>
+
+<h1>{APP.name}</h1>
+<p>{APP.description} Coming soon.</p>

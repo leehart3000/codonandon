@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/svelte';
 import type { HandleClientError } from '@sveltejs/kit/hooks';
+import { APP } from '#lib/config.js';
 
 // We use @sentry/svelte rather than @sentry/sveltekit: the SvelteKit package's
 // default add-ons still use $app/stores, which SvelteKit 3 removed (app_stores_removed).
@@ -8,7 +9,7 @@ Sentry.init({
 	dsn: 'https://4242b0dcd2cf3887903e30b48599282c@o4511932249341952.ingest.de.sentry.io/4512244695236688',
 
 	// Only report from the live site, never from local development or automated tests.
-	enabled: location.hostname === 'tetraminos.hartsoft.dev',
+	enabled: location.hostname === APP.hostname,
 
 	// Don't collect personal data such as IP addresses.
 	dataCollection: { userInfo: false }
