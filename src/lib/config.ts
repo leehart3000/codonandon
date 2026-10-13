@@ -1,6 +1,6 @@
 /**
- * Settings that change for each game.
- * When starting a new game from the template, change these values first.
+ * Settings that change for each app.
+ * When starting a new app from the template, change these values first.
  */
 export const APP = {
 	name: 'Tetraminos',
