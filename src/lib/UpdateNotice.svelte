@@ -27,7 +27,7 @@
 			});
 		});
 
-		// Check for a new version whenever the player comes back to this tab or app.
+		// Check for a new version whenever the user comes back to this tab or app.
 		function checkForUpdate() {
 			if (document.visibilityState === 'visible') void registration?.update();
 		}

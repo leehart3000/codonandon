@@ -72,7 +72,7 @@ self.addEventListener('fetch', (event) => {
 	);
 });
 
-// When the page asks (after the player taps "Reload"), stop waiting and take over now.
+// When the page asks (after the user taps "Reload"), stop waiting and take over now.
 self.addEventListener('message', (event) => {
 	if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
 });
