@@ -1,5 +1,6 @@
 import { START_CODON, translate, type Codon } from '../genetics/genetic-code';
-import { BOARD_WIDTH, lock, type ActivePiece, type Board } from './board';
+import { BOARD_WIDTH, drop, fits, lock, type ActivePiece, type Board } from './board';
+import { rotateClockwise, type Piece } from './pieces';
 import { frameOffset, type TranslationState } from './translation';
 
 /** Three squares in a row worth pointing out on the board. */
@@ -42,4 +43,51 @@ export function previewMarks(
 	const key = (mark: CodonMark) => `${mark.row}:${mark.column}`;
 	const existing = new Set(findMarks(board, translation).map(key));
 	return findMarks(lock(board, landed), translation).filter((mark) => !existing.has(key(mark)));
+}
+
+/** Squares to highlight as an opportunity: bases already on the board, and squares of the piece. */
+export interface Opportunities {
+	cells: { row: number; column: number }[];
+	/** Positions in the piece's list of squares, which stay the same when it turns. */
+	squares: number[];
+}
+
+/**
+ * Try the piece in every rotation and column (straight drops only), and find where it would
+ * form something useful: a new START when no chain is open, or a new in-frame STOP when one is.
+ */
+export function findOpportunities(
+	board: Board,
+	piece: Piece,
+	translation: TranslationState
+): Opportunities {
+	const wanted = translation.chain === null ? 'start' : 'stop';
+	const cells = new Map<string, { row: number; column: number }>();
+	const squares = new Set<number>();
+
+	let turned = piece;
+	for (let turn = 0; turn < 4; turn++) {
+		for (let x = -piece.size; x <= BOARD_WIDTH; x++) {
+			const above = { piece: turned, x, y: 0 };
+			if (!fits(board, above)) continue;
+			const landed = drop(board, above);
+
+			for (const mark of previewMarks(board, landed, translation)) {
+				if (mark.kind !== wanted) continue;
+				for (let column = mark.column; column < mark.column + 3; column++) {
+					if (board[mark.row]?.[column]) {
+						cells.set(`${mark.row}:${column}`, { row: mark.row, column });
+					} else {
+						const index = landed.piece.squares.findIndex(
+							(square) => landed.x + square.x === column && landed.y + square.y === mark.row
+						);
+						if (index >= 0) squares.add(index);
+					}
+				}
+			}
+		}
+		turned = rotateClockwise(turned);
+	}
+
+	return { cells: [...cells.values()], squares: [...squares].sort((a, b) => a - b) };
 }

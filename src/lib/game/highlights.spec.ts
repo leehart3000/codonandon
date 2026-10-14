@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Base } from '../genetics/genetic-code';
 import { BOARD_HEIGHT, createBoard, type Board } from './board';
-import { findMarks, previewMarks } from './highlights';
+import { findMarks, findOpportunities, previewMarks } from './highlights';
 import { SHAPES, type Piece } from './pieces';
 import { initialTranslationState, type TranslationState } from './translation';
 
@@ -71,5 +71,44 @@ describe('codon highlights', () => {
 	it('does not preview marks that are already on the board', () => {
 		const landed = { piece: oPiece('C'), x: 6, y: BOTTOM - 1 };
 		expect(previewMarks(boardFrom(['AUG.........']), landed, scanning)).toEqual([]);
+	});
+
+	it('finds where the piece could complete a START with bases on the board', () => {
+		// A and U are on the board; the I piece's first square (G) can drop in beside them.
+		const iPiece: Piece = {
+			shape: 'I',
+			size: SHAPES.I.size,
+			squares: SHAPES.I.squares.map(([x, y], i) => ({ x, y, base: 'GCCC'[i] as Base }))
+		};
+		expect(findOpportunities(boardFrom(['AU..........']), iPiece, scanning)).toEqual({
+			cells: [
+				{ row: BOTTOM, column: 0 },
+				{ row: BOTTOM, column: 1 }
+			],
+			squares: [0]
+		});
+	});
+
+	it('finds nothing when no START is possible', () => {
+		expect(findOpportunities(boardFrom(['CC..........']), oPiece('G'), scanning)).toEqual({
+			cells: [],
+			squares: []
+		});
+	});
+
+	it('with a chain open, finds where the piece could complete an in-frame STOP', () => {
+		// U and A are on the board; the I piece's first square (A) can drop in beside them: UAA.
+		const iPiece: Piece = {
+			shape: 'I',
+			size: SHAPES.I.size,
+			squares: SHAPES.I.squares.map(([x, y], i) => ({ x, y, base: 'ACCC'[i] as Base }))
+		};
+		expect(findOpportunities(boardFrom(['UA..........']), iPiece, chainOpen())).toEqual({
+			cells: [
+				{ row: BOTTOM, column: 0 },
+				{ row: BOTTOM, column: 1 }
+			],
+			squares: [0]
+		});
 	});
 });

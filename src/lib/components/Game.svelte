@@ -2,7 +2,12 @@
 	import { onMount } from 'svelte';
 	import { BOARD_HEIGHT, BOARD_WIDTH, drop } from '#lib/game/board.js';
 	import { createGame, fallInterval, type Action, type ClearReport } from '#lib/game/game.js';
-	import { findMarks, previewMarks, type CodonMark } from '#lib/game/highlights.js';
+	import {
+		findMarks,
+		findOpportunities,
+		previewMarks,
+		type CodonMark
+	} from '#lib/game/highlights.js';
 	import type { Piece } from '#lib/game/pieces.js';
 	import { chainBonus } from '#lib/game/scoring.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
@@ -21,8 +26,9 @@
 		C: '#7aa8d6'
 	};
 
-	/** START glows green, STOP glows red. */
-	const MARK_COLOURS = { start: '#4ade80', stop: '#f87171' } as const;
+	/** START glows green, STOP glows orange (banking a chain is good news), opportunities cyan. */
+	const MARK_COLOURS = { start: '#4ade80', stop: '#fb923c' } as const;
+	const OPPORTUNITY_COLOUR = '#22d3ee';
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -54,6 +60,13 @@
 			!view.over &&
 			!chainOpen &&
 			findMarks(view.board, view.translation).some((mark) => mark.kind === 'start')
+	);
+
+	/** Where the falling piece could form a START (or, with a chain open, a STOP). */
+	const opportunities = $derived(
+		started && !view.over && view.active
+			? findOpportunities(view.board, view.active.piece, view.translation)
+			: { cells: [], squares: [] }
 	);
 
 	/** Start a new game with a fresh seed. */
@@ -154,6 +167,7 @@
 		);
 
 		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
+		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
 
 		const active = view.active;
 		if (active) {
@@ -168,6 +182,11 @@
 
 			for (const { x, y, base } of active.piece.squares) {
 				drawSquare(context, active.x + x, active.y + y, base);
+			}
+
+			for (const index of opportunities.squares) {
+				const square = active.piece.squares[index];
+				if (square) drawOutline(context, active.x + square.x, active.y + square.y);
 			}
 		}
 	}
@@ -207,6 +226,17 @@
 		context.shadowBlur = 10;
 		context.lineWidth = 3;
 		context.strokeRect(mark.column * CELL + 1.5, mark.row * CELL + 1.5, 3 * CELL - 3, CELL - 3);
+		context.restore();
+	}
+
+	/** A cyan glow around one square: part of an opportunity. */
+	function drawOutline(context: CanvasRenderingContext2D, x: number, y: number) {
+		context.save();
+		context.strokeStyle = OPPORTUNITY_COLOUR;
+		context.shadowColor = OPPORTUNITY_COLOUR;
+		context.shadowBlur = 8;
+		context.lineWidth = 2.5;
+		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
 		context.restore();
 	}
 
@@ -257,7 +287,7 @@
 	<span
 		class="inline-flex gap-0.5 rounded p-0.5 ring-2"
 		class:ring-green-400={kind === 'start'}
-		class:ring-red-400={kind === 'stop'}
+		class:ring-orange-400={kind === 'stop'}
 	>
 		{#each codon.split('') as base, index (index)}
 			<span
