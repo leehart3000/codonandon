@@ -81,6 +81,7 @@ describe('codon highlights', () => {
 			squares: SHAPES.I.squares.map(([x, y], i) => ({ x, y, base: 'GCCC'[i] as Base }))
 		};
 		expect(findOpportunities(boardFrom(['AU..........']), iPiece, scanning)).toEqual({
+			kind: 'start',
 			cells: [
 				{ row: BOTTOM, column: 0 },
 				{ row: BOTTOM, column: 1 }
@@ -91,6 +92,7 @@ describe('codon highlights', () => {
 
 	it('finds nothing when no START is possible', () => {
 		expect(findOpportunities(boardFrom(['CC..........']), oPiece('G'), scanning)).toEqual({
+			kind: 'start',
 			cells: [],
 			squares: []
 		});
@@ -104,6 +106,7 @@ describe('codon highlights', () => {
 			squares: SHAPES.I.squares.map(([x, y], i) => ({ x, y, base: 'ACCC'[i] as Base }))
 		};
 		expect(findOpportunities(boardFrom(['UA..........']), iPiece, chainOpen())).toEqual({
+			kind: 'stop',
 			cells: [
 				{ row: BOTTOM, column: 0 },
 				{ row: BOTTOM, column: 1 }

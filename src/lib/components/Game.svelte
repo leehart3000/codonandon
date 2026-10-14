@@ -28,7 +28,7 @@
 
 	/** START glows green, STOP glows orange (banking a chain is good news), opportunities cyan. */
 	const MARK_COLOURS = { start: '#4ade80', stop: '#fb923c' } as const;
-	const OPPORTUNITY_COLOUR = '#22d3ee';
+	const OPPORTUNITY_COLOURS = { start: '#22d3ee', stop: '#fb923c' } as const;
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -66,7 +66,7 @@
 	const opportunities = $derived(
 		started && !view.over && view.active
 			? findOpportunities(view.board, view.active.piece, view.translation)
-			: { cells: [], squares: [] }
+			: { kind: 'start' as const, cells: [], squares: [] }
 	);
 
 	/** Start a new game with a fresh seed. */
@@ -167,7 +167,7 @@
 		);
 
 		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
-		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
+		for (const cell of opportunities.cells) drawOutline(context, cell.column, cell.row);
 
 		const active = view.active;
 		if (active) {
@@ -229,11 +229,12 @@
 		context.restore();
 	}
 
-	/** A cyan glow around one square: part of an opportunity. */
+	/** A glow around one square that is part of an opportunity: cyan for START, orange for STOP. */
 	function drawOutline(context: CanvasRenderingContext2D, x: number, y: number) {
+		const colour = OPPORTUNITY_COLOURS[opportunities.kind];
 		context.save();
-		context.strokeStyle = OPPORTUNITY_COLOUR;
-		context.shadowColor = OPPORTUNITY_COLOUR;
+		context.strokeStyle = colour;
+		context.shadowColor = colour;
 		context.shadowBlur = 8;
 		context.lineWidth = 2.5;
 		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
@@ -390,7 +391,7 @@
 					</button>
 				</div>
 			{:else if paused}
-				<div class="absolute inset-0 flex items-center justify-center bg-slate-900/70 text-white">
+				<div class="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
 					<p class="text-xl font-bold">Paused: press P</p>
 				</div>
 			{/if}
@@ -409,7 +410,7 @@
 			<dd class="text-right font-mono">{view.stats.chains}</dd>
 		</dl>
 
-		{#if started}
+		{#if started && !paused}
 			<section>
 				<h2 class="font-semibold">Next</h2>
 				{@render pieceGrid(view.next)}

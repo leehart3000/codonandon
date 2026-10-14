@@ -47,6 +47,8 @@ export function previewMarks(
 
 /** Squares to highlight as an opportunity: bases already on the board, and squares of the piece. */
 export interface Opportunities {
+	/** What the opportunity would form: a START, or (with a chain open) a STOP. */
+	kind: 'start' | 'stop';
 	cells: { row: number; column: number }[];
 	/** Positions in the piece's list of squares, which stay the same when it turns. */
 	squares: number[];
@@ -89,5 +91,9 @@ export function findOpportunities(
 		turned = rotateClockwise(turned);
 	}
 
-	return { cells: [...cells.values()], squares: [...squares].sort((a, b) => a - b) };
+	return {
+		kind: wanted,
+		cells: [...cells.values()],
+		squares: [...squares].sort((a, b) => a - b)
+	};
 }
