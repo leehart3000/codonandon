@@ -1,16 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { BOARD_HEIGHT, BOARD_WIDTH } from '#lib/game/board.js';
+	import { BOARD_HEIGHT, BOARD_WIDTH, drop } from '#lib/game/board.js';
 	import { createGame, fallInterval, type Action, type ClearReport } from '#lib/game/game.js';
-	import { chainBonus } from '#lib/game/scoring.js';
+	import { findMarks, previewMarks, type CodonMark } from '#lib/game/highlights.js';
 	import type { Piece } from '#lib/game/pieces.js';
+	import { chainBonus } from '#lib/game/scoring.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
-	import { drop } from '#lib/game/board.js';
-	import { findMarks, previewMarks, type CodonMark } from '#lib/game/highlights.js';
 
 	/** Size of one square, in pixels. */
 	const CELL = 28;
+
+	/** Gap between codon slots (groups of 3 columns), in pixels: makes the reading frame visible. */
+	const GAP = 6;
+
+	/** Total board width in pixels, including the 3 gaps between the 4 slots. */
+	const BOARD_PIXEL_WIDTH = BOARD_WIDTH * CELL + (BOARD_WIDTH / 3 - 1) * GAP;
+	const BOARD_PIXEL_HEIGHT = BOARD_HEIGHT * CELL;
+
+	/** Where a column starts, in pixels, allowing for the gaps between slots. */
+	const columnX = (column: number) => column * CELL + Math.floor(column / 3) * GAP;
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -22,7 +31,6 @@
 
 	/** START glows green, STOP glows red. */
 	const MARK_COLOURS = { start: '#4ade80', stop: '#f87171' } as const;
-	const MARK_SYMBOLS = { start: '▶', stop: '■' } as const;
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -45,6 +53,7 @@
 	let paused = $state(false);
 	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
+
 	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
 
 	/** Start a new game with a fresh seed. */
@@ -131,17 +140,21 @@
 		if (!canvas || !context) return;
 
 		const scale = window.devicePixelRatio || 1;
-		canvas.width = BOARD_WIDTH * CELL * scale;
-		canvas.height = BOARD_HEIGHT * CELL * scale;
+		canvas.width = BOARD_PIXEL_WIDTH * scale;
+		canvas.height = BOARD_PIXEL_HEIGHT * scale;
 		context.setTransform(scale, 0, 0, scale, 0, 0);
 
-		context.fillStyle = '#0f172a';
-		context.fillRect(0, 0, BOARD_WIDTH * CELL, BOARD_HEIGHT * CELL);
-
-		// Faint lines between columns, slightly brighter between codons (every 3 columns).
-		for (let column = 1; column < BOARD_WIDTH; column++) {
-			context.fillStyle = column % 3 === 0 ? '#334155' : '#1e293b';
-			context.fillRect(column * CELL, 0, 1, BOARD_HEIGHT * CELL);
+		// Dark gaps between slots, with four slightly lighter lanes: one per codon slot.
+		context.fillStyle = '#020617';
+		context.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
+		for (let slot = 0; slot < BOARD_WIDTH / 3; slot++) {
+			context.fillStyle = '#0f172a';
+			context.fillRect(columnX(slot * 3), 0, 3 * CELL, BOARD_PIXEL_HEIGHT);
+			// Faint lines between the three columns inside a lane.
+			context.fillStyle = '#1e293b';
+			for (let i = 1; i < 3; i++) {
+				context.fillRect(columnX(slot * 3) + i * CELL, 0, 1, BOARD_PIXEL_HEIGHT);
+			}
 		}
 
 		if (!started) return;
@@ -169,14 +182,18 @@
 		}
 	}
 
-	function drawSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
-		context.fillStyle = COLOURS[base];
-		context.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
-		context.fillStyle = '#0f172a';
+	function drawLetter(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
 		context.font = `bold ${Math.round(CELL * 0.55)}px system-ui, sans-serif`;
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
-		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+		context.fillText(base, columnX(x) + CELL / 2, y * CELL + CELL / 2 + 1);
+	}
+
+	function drawSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
+		context.fillStyle = COLOURS[base];
+		context.fillRect(columnX(x) + 1, y * CELL + 1, CELL - 2, CELL - 2);
+		context.fillStyle = '#0f172a';
+		drawLetter(context, x, y, base);
 	}
 
 	function drawGhostSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
@@ -184,33 +201,22 @@
 		context.globalAlpha = 0.4;
 		context.strokeStyle = COLOURS[base];
 		context.lineWidth = 2;
-		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
+		context.strokeRect(columnX(x) + 2, y * CELL + 2, CELL - 4, CELL - 4);
 		context.fillStyle = COLOURS[base];
-		context.font = `bold ${Math.round(CELL * 0.55)}px system-ui, sans-serif`;
-		context.textAlign = 'center';
-		context.textBaseline = 'middle';
-		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+		drawLetter(context, x, y, base);
 		context.restore();
 	}
 
-	/** Outline a START or STOP codon slot with a glow and a small symbol. */
+	/** Outline a START or STOP codon slot with a coloured glow. */
 	function drawMark(context: CanvasRenderingContext2D, mark: CodonMark, alpha: number) {
 		const colour = MARK_COLOURS[mark.kind];
-		const x = mark.slot * 3 * CELL;
-		const y = mark.row * CELL;
 		context.save();
 		context.globalAlpha = alpha;
 		context.strokeStyle = colour;
 		context.shadowColor = colour;
 		context.shadowBlur = 10;
 		context.lineWidth = 3;
-		context.strokeRect(x + 1.5, y + 1.5, 3 * CELL - 3, CELL - 3);
-		context.shadowBlur = 0;
-		context.fillStyle = colour;
-		context.font = 'bold 9px system-ui, sans-serif';
-		context.textAlign = 'left';
-		context.textBaseline = 'top';
-		context.fillText(MARK_SYMBOLS[mark.kind], x + 4, y + 3);
+		context.strokeRect(columnX(mark.slot * 3) + 1.5, mark.row * CELL + 1.5, 3 * CELL - 3, CELL - 3);
 		context.restore();
 	}
 
@@ -257,6 +263,19 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
+{#snippet chips(codon: string)}
+	<span class="inline-flex gap-0.5">
+		{#each codon.split('') as base, index (index)}
+			<span
+				class="flex h-5 w-5 items-center justify-center rounded-sm text-xs font-bold text-slate-900"
+				style:background-color={COLOURS[base as Base]}
+			>
+				{base}
+			</span>
+		{/each}
+	</span>
+{/snippet}
+
 {#snippet pieceGrid(piece: Piece)}
 	<div class="grid w-fit gap-0.5" style:grid-template-columns="repeat({piece.size}, 1.25rem)">
 		{#each Array.from({ length: piece.size * piece.size }, (_, i) => i) as index (index)}
@@ -274,58 +293,76 @@
 {/snippet}
 
 <div class="flex flex-wrap items-start gap-6">
-	<div class="relative transition-shadow" class:ring-4={chainOpen} class:ring-green-400={chainOpen}>
-		{#if chainOpen}
-			<div
-				class="absolute top-2 right-2 z-10 rounded bg-green-400 px-2 py-0.5 text-sm font-bold text-slate-900"
-			>
-				CHAIN ×2
-			</div>
-		{/if}
-		<canvas
-			bind:this={canvas}
-			style:width="{BOARD_WIDTH * CELL}px"
-			style:height="{BOARD_HEIGHT * CELL}px"
+	<div>
+		<!-- Goal bar: what to aim for right now, shown with coloured bases. -->
+		<div
+			class="mb-2 flex min-h-8 flex-wrap items-center justify-center gap-1 text-sm font-semibold"
+			style:width="{BOARD_PIXEL_WIDTH}px"
 		>
-			Game board. The score, next piece and chain are listed beside it.
-		</canvas>
+			{#if started && !view.over}
+				{#if chainOpen}
+					<span class="text-green-700">Chain ×2 · STOP:</span>
+					{@render chips('UAA')}
+					{@render chips('UAG')}
+					{@render chips('UGA')}
+				{:else}
+					<span>Make</span>
+					{@render chips('AUG')}
+					<span>in one slot to START a chain</span>
+				{/if}
+			{/if}
+		</div>
 
-		{#if !started}
-			<div
-				class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+		<div
+			class="relative transition-shadow"
+			class:ring-4={chainOpen}
+			class:ring-green-400={chainOpen}
+		>
+			<canvas
+				bind:this={canvas}
+				style:width="{BOARD_PIXEL_WIDTH}px"
+				style:height="{BOARD_PIXEL_HEIGHT}px"
 			>
-				{#if mounted}
+				Game board. The score, next piece and chain are listed beside it.
+			</canvas>
+
+			{#if !started}
+				<div
+					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+				>
+					{#if mounted}
+						<button
+							type="button"
+							class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
+							onclick={start}
+						>
+							Start
+						</button>
+						<p class="text-sm">or press Enter</p>
+					{:else}
+						<p>Loading…</p>
+					{/if}
+				</div>
+			{:else if view.over}
+				<div
+					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+				>
+					<p class="text-2xl font-bold">Game over</p>
+					<p>Score: {view.score.score}</p>
 					<button
 						type="button"
-						class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
+						class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
 						onclick={start}
 					>
-						Start
+						Play again
 					</button>
-					<p class="text-sm">or press Enter</p>
-				{:else}
-					<p>Loading…</p>
-				{/if}
-			</div>
-		{:else if view.over}
-			<div
-				class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
-			>
-				<p class="text-2xl font-bold">Game over</p>
-				<p>Score: {view.score.score}</p>
-				<button
-					type="button"
-					class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
-					onclick={start}
-				>
-					Play again
-				</button>
-			</div>
-		{:else if paused}
-			<div class="absolute inset-0 flex items-center justify-center bg-slate-900/70 text-white">
-				<p class="text-xl font-bold">Paused: press P</p>
-			</div>
-		{/if}
+				</div>
+			{:else if paused}
+				<div class="absolute inset-0 flex items-center justify-center bg-slate-900/70 text-white">
+					<p class="text-xl font-bold">Paused: press P</p>
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<aside class="flex w-64 flex-col gap-4">
@@ -353,7 +390,6 @@
 				<p class="font-mono text-sm">
 					{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
 				</p>
-				<p class="text-sm font-semibold text-green-700">Chain open: rows score ×2</p>
 				{#if view.translation.chain.length >= 2}
 					<p class="text-sm">
 						Worth +{chainBonus(view.translation.chain.length, view.score.level)} if a stop comes now
