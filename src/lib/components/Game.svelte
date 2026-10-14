@@ -10,16 +10,8 @@
 
 	/** Size of one square, in pixels. */
 	const CELL = 28;
-
-	/** Gap between codon slots (groups of 3 columns), in pixels: makes the reading frame visible. */
-	const GAP = 6;
-
-	/** Total board width in pixels, including the 3 gaps between the 4 slots. */
-	const BOARD_PIXEL_WIDTH = BOARD_WIDTH * CELL + (BOARD_WIDTH / 3 - 1) * GAP;
+	const BOARD_PIXEL_WIDTH = BOARD_WIDTH * CELL;
 	const BOARD_PIXEL_HEIGHT = BOARD_HEIGHT * CELL;
-
-	/** Where a column starts, in pixels, allowing for the gaps between slots. */
-	const columnX = (column: number) => column * CELL + Math.floor(column / 3) * GAP;
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -98,9 +90,6 @@
 				case 'too-short':
 					lines.push(`${event.codon} → stop: a lone Met isn't a chain`);
 					break;
-				case 'outside':
-					lines.push(`${event.codon} (waiting for AUG)`);
-					break;
 			}
 		}
 		if (clear.chainPoints > 0) lines.push(`Chain bonus: +${clear.chainPoints}`);
@@ -144,17 +133,13 @@
 		canvas.height = BOARD_PIXEL_HEIGHT * scale;
 		context.setTransform(scale, 0, 0, scale, 0, 0);
 
-		// Dark gaps between slots, with four slightly lighter lanes: one per codon slot.
-		context.fillStyle = '#020617';
+		context.fillStyle = '#0f172a';
 		context.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
-		for (let slot = 0; slot < BOARD_WIDTH / 3; slot++) {
-			context.fillStyle = '#0f172a';
-			context.fillRect(columnX(slot * 3), 0, 3 * CELL, BOARD_PIXEL_HEIGHT);
-			// Faint lines between the three columns inside a lane.
-			context.fillStyle = '#1e293b';
-			for (let i = 1; i < 3; i++) {
-				context.fillRect(columnX(slot * 3) + i * CELL, 0, 1, BOARD_PIXEL_HEIGHT);
-			}
+
+		// Faint lines between columns.
+		context.fillStyle = '#1e293b';
+		for (let column = 1; column < BOARD_WIDTH; column++) {
+			context.fillRect(column * CELL, 0, 1, BOARD_PIXEL_HEIGHT);
 		}
 
 		if (!started) return;
@@ -165,7 +150,7 @@
 			})
 		);
 
-		for (const mark of findMarks(view.board)) drawMark(context, mark, 1);
+		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
 
 		const active = view.active;
 		if (active) {
@@ -174,7 +159,9 @@
 			for (const { x, y, base } of landed.piece.squares) {
 				drawGhostSquare(context, landed.x + x, landed.y + y, base);
 			}
-			for (const mark of previewMarks(view.board, landed)) drawMark(context, mark, 0.5);
+			for (const mark of previewMarks(view.board, landed, view.translation)) {
+				drawMark(context, mark, 0.5);
+			}
 
 			for (const { x, y, base } of active.piece.squares) {
 				drawSquare(context, active.x + x, active.y + y, base);
@@ -186,12 +173,12 @@
 		context.font = `bold ${Math.round(CELL * 0.55)}px system-ui, sans-serif`;
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
-		context.fillText(base, columnX(x) + CELL / 2, y * CELL + CELL / 2 + 1);
+		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
 	}
 
 	function drawSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
 		context.fillStyle = COLOURS[base];
-		context.fillRect(columnX(x) + 1, y * CELL + 1, CELL - 2, CELL - 2);
+		context.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
 		context.fillStyle = '#0f172a';
 		drawLetter(context, x, y, base);
 	}
@@ -201,13 +188,13 @@
 		context.globalAlpha = 0.4;
 		context.strokeStyle = COLOURS[base];
 		context.lineWidth = 2;
-		context.strokeRect(columnX(x) + 2, y * CELL + 2, CELL - 4, CELL - 4);
+		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
 		context.fillStyle = COLOURS[base];
 		drawLetter(context, x, y, base);
 		context.restore();
 	}
 
-	/** Outline a START or STOP codon slot with a coloured glow. */
+	/** Outline three squares (a START or STOP codon) with a coloured glow. */
 	function drawMark(context: CanvasRenderingContext2D, mark: CodonMark, alpha: number) {
 		const colour = MARK_COLOURS[mark.kind];
 		context.save();
@@ -216,7 +203,7 @@
 		context.shadowColor = colour;
 		context.shadowBlur = 10;
 		context.lineWidth = 3;
-		context.strokeRect(columnX(mark.slot * 3) + 1.5, mark.row * CELL + 1.5, 3 * CELL - 3, CELL - 3);
+		context.strokeRect(mark.column * CELL + 1.5, mark.row * CELL + 1.5, 3 * CELL - 3, CELL - 3);
 		context.restore();
 	}
 
@@ -263,8 +250,12 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-{#snippet chips(codon: string)}
-	<span class="inline-flex gap-0.5">
+{#snippet chips(codon: string, kind: 'start' | 'stop')}
+	<span
+		class="inline-flex gap-0.5 rounded p-0.5 ring-2"
+		class:ring-green-400={kind === 'start'}
+		class:ring-red-400={kind === 'stop'}
+	>
 		{#each codon.split('') as base, index (index)}
 			<span
 				class="flex h-5 w-5 items-center justify-center rounded-sm text-xs font-bold text-slate-900"
@@ -296,19 +287,21 @@
 	<div>
 		<!-- Goal bar: what to aim for right now, shown with coloured bases. -->
 		<div
-			class="mb-2 flex min-h-8 flex-wrap items-center justify-center gap-1 text-sm font-semibold"
+			class="mb-2 flex min-h-8 flex-wrap items-center justify-center gap-1.5 text-sm font-semibold"
 			style:width="{BOARD_PIXEL_WIDTH}px"
 		>
 			{#if started && !view.over}
 				{#if chainOpen}
-					<span class="text-green-700">Chain ×2 · STOP:</span>
-					{@render chips('UAA')}
-					{@render chips('UAG')}
-					{@render chips('UGA')}
+					<span class="text-green-700">Chain ×2 · end it with a STOP:</span>
+					{@render chips('UAA', 'stop')}
+					<span>or</span>
+					{@render chips('UAG', 'stop')}
+					<span>or</span>
+					{@render chips('UGA', 'stop')}
 				{:else}
 					<span>Make</span>
-					{@render chips('AUG')}
-					<span>in one slot to START a chain</span>
+					{@render chips('AUG', 'start')}
+					<span>anywhere in a row to START a chain</span>
 				{/if}
 			{/if}
 		</div>

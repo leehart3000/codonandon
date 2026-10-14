@@ -1,48 +1,50 @@
 import { describe, expect, it } from 'vitest';
 import type { Base } from '../genetics/genetic-code';
-import { initialTranslationState, readRows, rowToCodons } from './translation';
+import { frameOffset, initialTranslationState, readRows } from './translation';
 
 /** A row of bases from text, e.g. "AUGGCUUGGUAA". */
 const row = (text: string) => text.split('') as Base[];
 
-/** Read rows from the start, returning the event types and final chain. */
+/** Read rows from the start, returning the event types, events and final state. */
 function read(...rows: string[]) {
 	const { state, events } = readRows(initialTranslationState, rows.map(row));
-	return { types: events.map((event) => event.type), events, chain: state.chain };
+	return { types: events.map((event) => event.type), events, state };
 }
 
 describe('translation', () => {
-	it('splits a row into four codons, left to right', () => {
-		expect(rowToCodons(row('AUGGCUUGGUAA'))).toEqual(['AUG', 'GCU', 'UGG', 'UAA']);
-	});
-
-	it('ignores codons until a start codon appears', () => {
+	it('ignores bases until a start codon appears', () => {
 		const result = read('GCUUGGCCCAAA');
-		expect(result.types).toEqual(['outside', 'outside', 'outside', 'outside']);
-		expect(result.chain).toBeNull();
+		expect(result.types).toEqual([]);
+		expect(result.state.chain).toBeNull();
 	});
 
 	it('makes a complete chain: start, amino acids, stop', () => {
 		const result = read('AUGGCUUGGUAA');
 		expect(result.types).toEqual(['start', 'add', 'add', 'complete']);
 		expect(result.events[3]).toMatchObject({ type: 'complete', chain: ['M', 'A', 'W'] });
-		expect(result.chain).toBeNull();
+		expect(result.state.chain).toBeNull();
 	});
 
-	it('carries a chain across rows, bottom row first', () => {
-		// Row 1: start, Ala, Lys, Gly. Row 2: Phe, stop, then two codons outside any chain.
-		const result = read('AUGGCUAAAGGG', 'UUUUAACCCCCC');
-		expect(result.types).toEqual([
-			'start',
-			'add',
-			'add',
-			'add',
-			'add',
-			'complete',
-			'outside',
-			'outside'
-		]);
-		expect(result.events[5]).toMatchObject({ chain: ['M', 'A', 'K', 'G', 'F'] });
+	it('finds AUG at any position, which sets the reading frame', () => {
+		// C, then AUG GCU AAA, then CC left over.
+		const result = read('CAUGGCUAAACC');
+		expect(result.types).toEqual(['start', 'add', 'add']);
+		expect(result.state.chain).toEqual(['M', 'A', 'K']);
+		expect(result.state.pending).toEqual(['C', 'C']);
+	});
+
+	it('carries the reading frame across rows', () => {
+		// Row 1: CC, AUG GCU AAA, then G left over. Row 2: GG completes GGG, then UAA stops.
+		const result = read('CCAUGGCUAAAG', 'GGUAACCCCCCC');
+		expect(result.types).toEqual(['start', 'add', 'add', 'add', 'complete']);
+		expect(result.events[4]).toMatchObject({ chain: ['M', 'A', 'K', 'G'] });
+	});
+
+	it('finds an AUG split across two rows', () => {
+		// Row 1 ends with AU; row 2 starts with G.
+		const result = read('CCCCCCCCCCAU', 'GGCUUAACCCCC');
+		expect(result.types).toEqual(['start', 'add', 'complete']);
+		expect(result.events[2]).toMatchObject({ chain: ['M', 'A'] });
 	});
 
 	it('treats AUG inside a chain as another methionine, not a restart', () => {
@@ -52,19 +54,24 @@ describe('translation', () => {
 	});
 
 	it('does not count a lone methionine as a chain', () => {
-		const result = read('AUGUAGGCUCCC');
-		expect(result.types).toEqual(['start', 'too-short', 'outside', 'outside']);
+		expect(read('AUGUAGGCUCCC').types).toEqual(['start', 'too-short']);
 	});
 
-	it('starts a new chain after completing one', () => {
+	it('scans for a new start after completing a chain', () => {
 		const result = read('AUGGCUUAAAUG');
 		expect(result.types).toEqual(['start', 'add', 'complete', 'start']);
-		expect(result.chain).toEqual(['M']);
+		expect(result.state.chain).toEqual(['M']);
 	});
 
 	it('keeps an unfinished chain open for later rows', () => {
 		const result = read('CCCAUGGCUGGG');
-		expect(result.types).toEqual(['outside', 'start', 'add', 'add']);
-		expect(result.chain).toEqual(['M', 'A', 'G']);
+		expect(result.types).toEqual(['start', 'add', 'add']);
+		expect(result.state.chain).toEqual(['M', 'A', 'G']);
+	});
+
+	it('knows where the next codon starts in the next row', () => {
+		expect(frameOffset(read('AUGGCUUGGGCA').state)).toBe(0);
+		// One base (G) is left over, so columns 1–2 finish that codon, and the next starts at column 3.
+		expect(frameOffset(read('CCAUGGCUAAAG').state)).toBe(2);
 	});
 });
