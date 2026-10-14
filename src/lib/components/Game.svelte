@@ -48,6 +48,14 @@
 
 	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
 
+	/** An AUG is placed on the board, but its row hasn't been cleared yet. */
+	const startReady = $derived(
+		started &&
+			!view.over &&
+			!chainOpen &&
+			findMarks(view.board, view.translation).some((mark) => mark.kind === 'start')
+	);
+
 	/** Start a new game with a fresh seed. */
 	function start() {
 		game = createGame({ seed: randomSeed() });
@@ -136,12 +144,6 @@
 		context.fillStyle = '#0f172a';
 		context.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
 
-		// Faint lines between columns.
-		context.fillStyle = '#1e293b';
-		for (let column = 1; column < BOARD_WIDTH; column++) {
-			context.fillRect(column * CELL, 0, 1, BOARD_PIXEL_HEIGHT);
-		}
-
 		if (!started) return;
 
 		view.board.forEach((row, y) =>
@@ -185,7 +187,7 @@
 
 	function drawGhostSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
 		context.save();
-		context.globalAlpha = 0.4;
+		context.globalAlpha = 0.2;
 		context.strokeStyle = COLOURS[base];
 		context.lineWidth = 2;
 		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
@@ -285,23 +287,29 @@
 
 <div class="flex flex-wrap items-start gap-6">
 	<div>
-		<!-- Goal bar: what to aim for right now, shown with coloured bases. -->
+		<!-- Goal bar: what to aim for right now. Fixed height, so the board never jumps. -->
 		<div
-			class="mb-2 flex min-h-8 flex-wrap items-center justify-center gap-1.5 text-sm font-semibold"
+			class="mb-2 flex h-16 flex-col items-center justify-center gap-1.5 text-center font-bold tracking-wide uppercase"
 			style:width="{BOARD_PIXEL_WIDTH}px"
 		>
 			{#if started && !view.over}
 				{#if chainOpen}
-					<span class="text-green-700">Chain ×2 · end it with a STOP:</span>
-					{@render chips('UAA', 'stop')}
-					<span>or</span>
-					{@render chips('UAG', 'stop')}
-					<span>or</span>
-					{@render chips('UGA', 'stop')}
+					<p class="text-green-700">Chain started · double points!</p>
+					<p class="flex items-center gap-2 text-xs">
+						<span>Stop codons:</span>
+						{@render chips('UAA', 'stop')}
+						{@render chips('UAG', 'stop')}
+						{@render chips('UGA', 'stop')}
+					</p>
+				{:else if startReady}
+					<p class="text-green-700">Start codon ready!</p>
+					<p class="text-xs">Clear its row to start a chain</p>
 				{:else}
-					<span>Make</span>
-					{@render chips('AUG', 'start')}
-					<span>anywhere in a row to START a chain</span>
+					<p>Find a start codon</p>
+					<p class="flex items-center gap-2 text-xs">
+						{@render chips('AUG', 'start')}
+						<span>anywhere in a row</span>
+					</p>
 				{/if}
 			{/if}
 		</div>
@@ -389,7 +397,7 @@
 					</p>
 				{/if}
 			{:else}
-				<p class="text-sm">Waiting for AUG</p>
+				<p class="text-sm">No chain yet</p>
 			{/if}
 		</section>
 
