@@ -6,6 +6,8 @@
 	import type { Piece } from '#lib/game/pieces.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
+	import { drop } from '#lib/game/board.js';
+	import { findMarks, previewMarks, type CodonMark } from '#lib/game/highlights.js';
 
 	/** Size of one square, in pixels. */
 	const CELL = 28;
@@ -17,6 +19,10 @@
 		G: '#e3be71',
 		C: '#7aa8d6'
 	};
+
+	/** START glows green, STOP glows red. */
+	const MARK_COLOURS = { start: '#4ade80', stop: '#f87171' } as const;
+	const MARK_SYMBOLS = { start: '▶', stop: '■' } as const;
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -39,6 +45,7 @@
 	let paused = $state(false);
 	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
+	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
 
 	/** Start a new game with a fresh seed. */
 	function start() {
@@ -145,8 +152,17 @@
 			})
 		);
 
+		for (const mark of findMarks(view.board)) drawMark(context, mark, 1);
+
 		const active = view.active;
 		if (active) {
+			// The ghost: where the piece will land, and any START or STOP it would make.
+			const landed = drop(view.board, active);
+			for (const { x, y, base } of landed.piece.squares) {
+				drawGhostSquare(context, landed.x + x, landed.y + y, base);
+			}
+			for (const mark of previewMarks(view.board, landed)) drawMark(context, mark, 0.5);
+
 			for (const { x, y, base } of active.piece.squares) {
 				drawSquare(context, active.x + x, active.y + y, base);
 			}
@@ -161,6 +177,41 @@
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
 		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+	}
+
+	function drawGhostSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
+		context.save();
+		context.globalAlpha = 0.4;
+		context.strokeStyle = COLOURS[base];
+		context.lineWidth = 2;
+		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
+		context.fillStyle = COLOURS[base];
+		context.font = `bold ${Math.round(CELL * 0.55)}px system-ui, sans-serif`;
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+		context.restore();
+	}
+
+	/** Outline a START or STOP codon slot with a glow and a small symbol. */
+	function drawMark(context: CanvasRenderingContext2D, mark: CodonMark, alpha: number) {
+		const colour = MARK_COLOURS[mark.kind];
+		const x = mark.slot * 3 * CELL;
+		const y = mark.row * CELL;
+		context.save();
+		context.globalAlpha = alpha;
+		context.strokeStyle = colour;
+		context.shadowColor = colour;
+		context.shadowBlur = 10;
+		context.lineWidth = 3;
+		context.strokeRect(x + 1.5, y + 1.5, 3 * CELL - 3, CELL - 3);
+		context.shadowBlur = 0;
+		context.fillStyle = colour;
+		context.font = 'bold 9px system-ui, sans-serif';
+		context.textAlign = 'left';
+		context.textBaseline = 'top';
+		context.fillText(MARK_SYMBOLS[mark.kind], x + 4, y + 3);
+		context.restore();
 	}
 
 	// Redraw whenever the game changes.
@@ -223,7 +274,14 @@
 {/snippet}
 
 <div class="flex flex-wrap items-start gap-6">
-	<div class="relative">
+	<div class="relative transition-shadow" class:ring-4={chainOpen} class:ring-green-400={chainOpen}>
+		{#if chainOpen}
+			<div
+				class="absolute top-2 right-2 z-10 rounded bg-green-400 px-2 py-0.5 text-sm font-bold text-slate-900"
+			>
+				CHAIN ×2
+			</div>
+		{/if}
 		<canvas
 			bind:this={canvas}
 			style:width="{BOARD_WIDTH * CELL}px"
