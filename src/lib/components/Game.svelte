@@ -141,7 +141,8 @@
 		canvas.height = BOARD_PIXEL_HEIGHT * scale;
 		context.setTransform(scale, 0, 0, scale, 0, 0);
 
-		context.fillStyle = '#0f172a';
+		// The board turns deep green while a chain is open: noticeable without reading.
+		context.fillStyle = chainOpen ? '#052e1c' : '#0f172a';
 		context.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
 
 		if (!started) return;
@@ -305,7 +306,7 @@
 					<p class="text-green-700">Start codon ready!</p>
 					<p class="text-xs">Clear its row to start a chain</p>
 				{:else}
-					<p>Find a start codon</p>
+					<p>Form a start codon</p>
 					<p class="flex items-center gap-2 text-xs">
 						{@render chips('AUG', 'start')}
 						<span>anywhere in a row</span>
