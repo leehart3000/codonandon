@@ -10,5 +10,13 @@
 	},
 	"workers_dev": true,
 	"preview_urls": true,
-	"routes": [{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }]
+	"routes": [{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "tetraminos",
+			"database_id": "4b699df3-92a0-4460-88a9-7d89125fb4fc",
+			"migrations_dir": "migrations"
+		}
+	]
 }
