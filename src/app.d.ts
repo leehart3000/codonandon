@@ -1,14 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
-// for information about these interfaces
+// Cloudflare bindings (such as DB) come from `cloudflare:workers` in SvelteKit 3, not `platform`.
 declare global {
 	namespace App {
-		interface Platform {
-			env: Env;
-			ctx: ExecutionContext;
-			caches: CacheStorage;
-			cf?: IncomingRequestCfProperties;
-		}
-
 		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
