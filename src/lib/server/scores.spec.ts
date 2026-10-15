@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { GENERATOR_VERSION } from '../game/pieces';
-import { MIN_MS_PER_ROW, maxPlausibleScore, validateSubmission } from './scores';
+import {
+	INITIALS_ERROR,
+	MIN_MS_PER_ROW,
+	blockKey,
+	maxPlausibleScore,
+	validateSubmission
+} from './scores';
 
 /** A believable submission, with optional changes. */
 const valid = (changes: Record<string, unknown> = {}) => ({
@@ -32,8 +38,18 @@ describe('high-score validation', () => {
 		expect(result.ok && result.submission.initials).toBe('ABC');
 	});
 
-	it.each(['AB', 'ABCD', 'A1C', 'A C', ''])('rejects the initials "%s"', (initials) => {
-		expect(error({ initials })).toBe('Initials must be three letters, A to Z.');
+	it.each(['A', 'AB', 'A.B', 'J R', ' JR '])('accepts the initials "%s"', (initials) => {
+		expect(validateSubmission(valid({ initials })).ok).toBe(true);
+	});
+
+	it.each(['ABCD', 'A1C', 'A-B', '', '   ', '...'])('rejects the initials "%s"', (initials) => {
+		expect(error({ initials })).toBe(INITIALS_ERROR);
+	});
+
+	it('checks the blocklist by letters alone', () => {
+		expect(blockKey('A.B')).toBe('AB');
+		expect(blockKey('A B')).toBe('AB');
+		expect(blockKey('ABC')).toBe('ABC');
 	});
 
 	it('rejects numbers that are negative or not whole', () => {

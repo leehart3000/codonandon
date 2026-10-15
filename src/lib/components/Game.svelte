@@ -16,6 +16,7 @@
 	import { playState } from '#lib/play-state.svelte.js';
 	import { redundancyHighlight, summariseAminoAcids } from '#lib/game/summary.js';
 	import { describeLength } from '#lib/genetics/peptides.js';
+	import { getTurnstileToken } from '#lib/turnstile-client.js';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -32,6 +33,14 @@
 
 	/** Where the "show tips" choice is remembered in this browser. */
 	const SHOW_TIPS_KEY = 'showTips';
+
+	/** Where the player's initials are remembered in this browser. */
+	const INITIALS_KEY = 'initials';
+
+	/** Turnstile site key: Cloudflare's always-pass invisible test key on the dev server. */
+	const TURNSTILE_SITE_KEY = import.meta.env.DEV
+		? '1x00000000000000000000BB'
+		: APP.turnstileSiteKey;
 
 	/** Smallest and largest square size, in pixels. */
 	const MIN_CELL = 14;
@@ -82,6 +91,15 @@
 	let viewportWidth = $state(1024);
 	/** Points added at game over for an unfinished chain, shown on the stats screen. */
 	let finalBonus = $state(0);
+	/** Saving a score at game over. */
+	let initials = $state('');
+	let saving = $state(false);
+	let saveError = $state('');
+	let savedRank = $state<number | null>(null);
+	let turnstileBox: HTMLDivElement | undefined = $state();
+	/** When the current game started, and how long it lasted (for the server's speed check). */
+	let startedAt = 0;
+	let durationMs = 0;
 
 	const boardPixelWidth = $derived(BOARD_WIDTH * cell);
 	const boardPixelHeight = $derived(BOARD_HEIGHT * cell);
@@ -136,6 +154,10 @@
 		view = game.state;
 		paused = false;
 		finalBonus = 0;
+		saving = false;
+		saveError = '';
+		savedRank = null;
+		startedAt = performance.now();
 		howTo = null;
 		started = true;
 		tipsThisGame = showTips;
@@ -148,7 +170,10 @@
 		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
-		if (result.gameOver) finalBonus = result.gameOver.unfinishedPoints;
+		if (result.gameOver) {
+			finalBonus = result.gameOver.unfinishedPoints;
+			durationMs = Math.round(performance.now() - startedAt);
+		}
 		if (tipsThisGame && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
 		}
@@ -167,6 +192,59 @@
 		}
 	}
 
+	/** Send the score to the high-score table, after the invisible "are you human?" check. */
+	async function saveScore(event: SubmitEvent) {
+		event.preventDefault();
+		const clean = initials.trim().toUpperCase();
+		if (!/^[A-Z. ]{1,3}$/.test(clean) || !/[A-Z]/.test(clean)) {
+			saveError = 'Please enter 1 to 3 letters (spaces and full stops are fine too).';
+			return;
+		}
+		if (!turnstileBox || saving) return;
+
+		saving = true;
+		saveError = '';
+		try {
+			const turnstileToken = await getTurnstileToken(TURNSTILE_SITE_KEY, turnstileBox);
+			const response = await fetch('/api/scores', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					initials: clean,
+					score: view.score.score,
+					level: view.score.level,
+					rows: view.score.rows,
+					chains: view.stats.chains,
+					longestChain: view.stats.longestChain,
+					durationMs,
+					generatorVersion: view.generatorVersion,
+					tips: tipsThisGame,
+					offline: false,
+					turnstileToken
+				})
+			});
+			const result = (await response.json()) as { rank?: number; error?: string };
+			if (response.ok && result.rank) {
+				savedRank = result.rank;
+				try {
+					localStorage.setItem(INITIALS_KEY, clean);
+				} catch {
+					// Not remembered; that's fine.
+				}
+			} else {
+				saveError = result.error ?? 'Sorry, the score could not be saved.';
+			}
+		} catch (error) {
+			saveError = !navigator.onLine
+				? "You're offline, so the score can't be saved right now."
+				: error instanceof Error
+					? error.message
+					: 'Sorry, the score could not be saved.';
+		} finally {
+			saving = false;
+		}
+	}
+
 	/** Step through the "How to play" cards, closing after the last one. */
 	function nextHowTo() {
 		if (howTo === null) return;
@@ -179,6 +257,9 @@
 
 	function onKeydown(event: KeyboardEvent) {
 		if (!mounted) return;
+
+		// Typing in a box (such as initials) goes to the box, not the game.
+		if (event.target instanceof HTMLInputElement) return;
 
 		// Cards: Enter continues. Space is the drop key, so it never skips a card.
 		if (tip) {
@@ -467,6 +548,12 @@
 		} catch {
 			// Storage unavailable: keep the default (tips on).
 		}
+		// Restore the player's initials, if this browser remembers them.
+		try {
+			initials = localStorage.getItem(INITIALS_KEY) ?? '';
+		} catch {
+			// Storage unavailable: start with empty initials.
+		}
 		fitBoard();
 
 		// The automatic fall, timed by the level.
@@ -742,9 +829,9 @@
 				{@render tipCard(tip, 'Continue', () => (tip = null))}
 			{:else if view.over}
 				<div class="absolute inset-0 overflow-y-auto bg-slate-900/95 text-white">
-					<div class="flex min-h-full flex-col items-center justify-center gap-3 p-4 text-center">
+					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
 						<p class="text-xs font-bold tracking-widest uppercase opacity-70">Game over</p>
-						<p class="font-mono text-3xl font-black">{formatNumber(view.score.score)}</p>
+						<p class="font-mono text-2xl font-black">{formatNumber(view.score.score)}</p>
 						{#if finalBonus > 0}
 							<p class="text-xs opacity-80">
 								Includes +{formatNumber(finalBonus)} for an unfinished chain
@@ -814,6 +901,46 @@
 								{/each}
 							</ul>
 						</section>
+
+						{#if view.score.score > 0}
+							<form class="flex w-full flex-col items-center gap-2" onsubmit={saveScore}>
+								{#if savedRank !== null}
+									<p class="font-bold text-green-300">
+										Saved! You're #{savedRank} on the high-score table.
+									</p>
+								{:else}
+									<label
+										for="initials"
+										class="text-xs font-bold tracking-wide uppercase opacity-70"
+									>
+										Your initials
+									</label>
+									<div class="flex items-center gap-2">
+										<input
+											id="initials"
+											bind:value={initials}
+											maxlength="3"
+											autocomplete="off"
+											autocapitalize="characters"
+											spellcheck="false"
+											class="w-24 rounded bg-white px-2 py-2 text-center font-mono text-xl font-bold tracking-[0.3em] text-slate-900 uppercase"
+										/>
+										<button
+											type="submit"
+											class="min-h-11 rounded bg-green-500 px-4 font-semibold text-slate-900 disabled:opacity-50"
+											disabled={saving}
+										>
+											{saving ? 'Saving…' : 'Save score'}
+										</button>
+									</div>
+									{#if saveError}
+										<p class="text-xs text-orange-300" role="alert">{saveError}</p>
+									{/if}
+								{/if}
+								<!-- Turnstile's invisible check runs here; nothing is shown. -->
+								<div bind:this={turnstileBox}></div>
+							</form>
+						{/if}
 
 						<button
 							type="button"

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { GENERATOR_VERSION } from '#lib/game/pieces.js';
-import { validateSubmission } from '#lib/server/scores.js';
+import { blockKey, validateSubmission } from '#lib/server/scores.js';
 import type { RequestHandler } from './$types';
 import { env } from 'cloudflare:workers';
 import { TEST_SECRET, verifyTurnstile } from '#lib/server/turnstile.js';
@@ -54,7 +54,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const blocked = await db
 		.prepare('SELECT 1 FROM blocked_initials WHERE initials = ?')
-		.bind(s.initials)
+		.bind(blockKey(s.initials))
 		.first();
 	if (blocked) return json({ error: 'Please choose different initials.' }, { status: 422 });
 
