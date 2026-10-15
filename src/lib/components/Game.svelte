@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { APP } from '#lib/config.js';
 	import { BOARD_HEIGHT, BOARD_WIDTH, drop } from '#lib/game/board.js';
-	import { createGame, fallInterval, type Action, type ClearReport } from '#lib/game/game.js';
+	import { createGame, fallInterval, type Action, type ActionResult } from '#lib/game/game.js';
 	import {
 		findMarks,
 		findOpportunities,
@@ -50,6 +51,9 @@
 	/** A fresh random seed for each new game. */
 	const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
 
+	/** Scores with thousands separators, e.g. 12,340. */
+	const formatNumber = (value: number) => value.toLocaleString('en-GB');
+
 	let game = createGame({ seed: 1 });
 	let view = $state.raw(game.state);
 	/** True once the page's code is running, so buttons work when they appear. */
@@ -62,23 +66,26 @@
 	let tip = $state<Tip | null>(null);
 	/** Which "How to play" card is showing on the start screen, if any. */
 	let howTo = $state<number | null>(null);
-	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
-	/** True on touch devices (phones, tablets): shows the on-screen buttons. */
+	/** True on touch devices (phones, tablets): gestures and touch instructions. */
 	let touch = $state(false);
 	/** Size of one square in pixels, fitted to the screen. */
 	let cell = $state(28);
+	let viewportWidth = $state(1024);
 
 	const boardPixelWidth = $derived(BOARD_WIDTH * cell);
 	const boardPixelHeight = $derived(BOARD_HEIGHT * cell);
+	/** The bars above the board may be wider than the board on phones, using the side space. */
+	const barWidth = $derived(Math.max(boardPixelWidth, Math.min(viewportWidth - 16, 420)));
 
+	const playing = $derived(started && !paused && !tip && !view.over);
 	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
 
-	/** The goal bar's first line while a chain is open, including what a stop would bank now. */
-	const chainHeadline = $derived(
+	/** What a stop codon would bank right now, if the chain is long enough. */
+	const bankable = $derived(
 		view.translation.chain && view.translation.chain.length >= 2
-			? `Chain started · rows ×2 · stop: +${chainBonus(view.translation.chain.length, view.score.level)}`
-			: 'Chain started · rows ×2'
+			? chainBonus(view.translation.chain.length, view.score.level)
+			: null
 	);
 
 	/** An AUG is placed on the board, but its row hasn't been cleared yet. */
@@ -100,32 +107,21 @@
 	function start() {
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
-		log = [];
 		paused = false;
 		howTo = null;
 		started = true;
 		tip = showTips ? (tipForLevel(1) ?? null) : null;
 	}
 
-	function act(action: Action) {
-		if (!started || paused || tip) return;
+	function act(action: Action): ActionResult | null {
+		if (!playing) return null;
 		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
-		if (result.clear) describeClear(result.clear);
-		if (result.gameOver && result.gameOver.unfinishedPoints > 0) {
-			addLog(`Unfinished chain: +${result.gameOver.unfinishedPoints}`);
-		}
 		if (showTips && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
 		}
-	}
-
-	/** Assist offered on tip cards: carry on with an empty board. */
-	function continueWithClearBoard() {
-		game.clearBoard();
-		view = game.state;
-		tip = null;
+		return result;
 	}
 
 	/** Remember the "show tips" choice in this browser. */
@@ -146,35 +142,6 @@
 
 	function togglePause() {
 		if (started && !view.over && !tip) paused = !paused;
-	}
-
-	/** Add lines to the reading log, newest at the top. */
-	function addLog(...lines: string[]) {
-		log = [...lines.reverse(), ...log].slice(0, 14);
-	}
-
-	function describeClear(clear: ClearReport) {
-		const rows = clear.rows.length;
-		const doubled = clear.multiplier > 1 ? ` (×${clear.multiplier}, chain open)` : '';
-		const lines = [`${rows} row${rows === 1 ? '' : 's'} cleared: +${clear.rowPoints}${doubled}`];
-		for (const event of clear.events) {
-			switch (event.type) {
-				case 'start':
-					lines.push(`${event.codon} → Met (start)`);
-					break;
-				case 'add':
-					lines.push(`${event.codon} → ${AMINO_ACIDS[event.aminoAcid].short}`);
-					break;
-				case 'complete':
-					lines.push(`${event.codon} → stop: chain of ${event.chain.length} complete!`);
-					break;
-				case 'too-short':
-					lines.push(`${event.codon} → stop: a lone Met isn't a chain`);
-					break;
-			}
-		}
-		if (clear.chainPoints > 0) lines.push(`Chain bonus: +${clear.chainPoints}`);
-		addLog(...lines);
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -218,36 +185,99 @@
 		act(action);
 	}
 
-	// Touch buttons: holding left, right or down repeats, like holding a key.
-	let repeatTimer: ReturnType<typeof setTimeout> | undefined;
+	/**
+	 * Gestures on the board (touch only):
+	 * drag left/right = move, drag down = move down, flick down = drop,
+	 * tap = turn clockwise, swipe up = turn anticlockwise.
+	 * With a mouse, clicking the board pauses instead.
+	 */
+	let gesture: {
+		id: number;
+		x: number;
+		y: number;
+		time: number;
+		axis: 'x' | 'y' | null;
+		columns: number;
+		rows: number;
+	} | null = null;
 
-	function press(event: PointerEvent, action: Action) {
+	function onBoardPointerDown(event: PointerEvent) {
+		if (event.pointerType === 'mouse') {
+			togglePause();
+			return;
+		}
+		if (!playing) return;
 		event.preventDefault();
-		act(action);
-		stopRepeat();
-		if (NO_REPEAT.includes(action)) return;
-		repeatTimer = setTimeout(function again() {
-			act(action);
-			repeatTimer = setTimeout(again, 80);
-		}, 220);
+		canvas?.setPointerCapture(event.pointerId);
+		gesture = {
+			id: event.pointerId,
+			x: event.clientX,
+			y: event.clientY,
+			time: performance.now(),
+			axis: null,
+			columns: 0,
+			rows: 0
+		};
 	}
 
-	function stopRepeat() {
-		clearTimeout(repeatTimer);
-		repeatTimer = undefined;
+	function onBoardPointerMove(event: PointerEvent) {
+		if (!gesture || event.pointerId !== gesture.id) return;
+		const dx = event.clientX - gesture.x;
+		const dy = event.clientY - gesture.y;
+
+		// Decide once whether this is a sideways or an up-and-down gesture.
+		if (!gesture.axis && Math.hypot(dx, dy) > 10) {
+			gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+		}
+
+		if (gesture.axis === 'x') {
+			const columns = Math.trunc(dx / cell);
+			while (gesture && gesture.columns < columns) {
+				act('right');
+				gesture.columns++;
+			}
+			while (gesture && gesture.columns > columns) {
+				act('left');
+				gesture.columns--;
+			}
+		} else if (gesture.axis === 'y' && dy > 0) {
+			const rows = Math.trunc(dy / cell);
+			while (gesture && gesture.rows < rows) {
+				// If the piece lands, stop: the drag must not carry on into the next piece.
+				if (act('down')?.locked) gesture = null;
+				else gesture.rows++;
+			}
+		}
+	}
+
+	function onBoardPointerUp(event: PointerEvent) {
+		if (!gesture || event.pointerId !== gesture.id) return;
+		const dy = event.clientY - gesture.y;
+		const elapsed = performance.now() - gesture.time;
+
+		if (!gesture.axis && elapsed < 300) {
+			act('rotate-clockwise');
+		} else if (gesture.axis === 'y') {
+			const speed = dy / Math.max(elapsed, 1);
+			if (dy > 2 * cell && speed > 0.6) act('drop');
+			else if (dy < -2 * cell) act('rotate-anticlockwise');
+		}
+		gesture = null;
 	}
 
 	/** Pause automatically when the player switches to another tab or app. */
 	function onVisibilityChange() {
 		if (document.visibilityState === 'hidden' && started && !view.over) paused = true;
-		stopRepeat();
+		gesture = null;
 	}
 
-	/** Fit the board to the screen, leaving room for the bars and touch buttons. */
+	/** Fit the board to the screen, leaving room for the bars (and, on wide screens, the heading). */
 	function fitBoard() {
-		const reserved = 64 + 48 + (touch ? 136 : 0) + 24 + (window.innerWidth >= 640 ? 72 : 0);
+		viewportWidth = window.innerWidth;
+		const wide = window.innerWidth >= 640;
+		const reserved = 44 + 44 + 24 + (wide ? 120 : 0);
 		const byHeight = Math.floor((window.innerHeight - reserved) / BOARD_HEIGHT);
-		const byWidth = Math.floor((window.innerWidth - 32) / BOARD_WIDTH);
+		const byWidth = Math.floor((window.innerWidth - 16) / BOARD_WIDTH);
 		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, byHeight, byWidth));
 	}
 
@@ -298,7 +328,7 @@
 	}
 
 	function drawLetter(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
-		context.font = `bold ${Math.round(cell * 0.55)}px system-ui, sans-serif`;
+		context.font = `bold ${Math.round(cell * 0.6)}px system-ui, sans-serif`;
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
 		context.fillText(base, x * cell + cell / 2, y * cell + cell / 2 + 1);
@@ -357,7 +387,7 @@
 
 	// Tell the rest of the app whether a game is in progress.
 	$effect(() => {
-		playState.playing = started && !paused && !tip && !view.over;
+		playState.playing = playing;
 		return () => {
 			playState.playing = false;
 		};
@@ -383,7 +413,7 @@
 		function loop(now: number) {
 			const elapsed = now - last;
 			last = now;
-			if (started && !paused && !tip && !game.state.over) {
+			if (playing) {
 				waited += elapsed;
 				if (waited >= fallInterval(game.state.score.level)) {
 					waited = 0;
@@ -394,10 +424,7 @@
 		}
 
 		frame = requestAnimationFrame(loop);
-		return () => {
-			cancelAnimationFrame(frame);
-			stopRepeat();
-		};
+		return () => cancelAnimationFrame(frame);
 	});
 </script>
 
@@ -412,7 +439,7 @@
 	>
 		{#each codon.split('') as base, index (index)}
 			<span
-				class="flex h-5 w-5 items-center justify-center rounded-sm text-xs font-bold text-slate-900"
+				class="flex h-4 w-4 items-center justify-center rounded-sm text-[10px] font-bold text-slate-900"
 				style:background-color={COLOURS[base as Base]}
 			>
 				{base}
@@ -421,68 +448,64 @@
 	</span>
 {/snippet}
 
-{#snippet tipCard(
-	card: Tip,
-	buttonLabel: string,
-	onContinue: () => void,
-	onClearBoard: (() => void) | null
-)}
-	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-4">
+{#snippet tipCard(card: Tip, buttonLabel: string, onContinue: () => void)}
+	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-3">
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
-			class="max-h-full overflow-y-auto rounded-lg bg-white p-5 text-slate-900 shadow-xl"
+			class="max-h-full overflow-y-auto rounded-lg bg-white p-4 text-slate-900 shadow-xl"
 		>
 			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
 				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length} · Level {card.level}
 			</p>
-			<h2 id="tip-title" class="text-xl font-bold">{card.title}</h2>
-			<p class="mt-2 text-sm">{card.text}</p>
+			<h2 id="tip-title" class="text-lg font-bold">{card.title}</h2>
+			<p class="mt-1 text-sm">{card.text}</p>
 			{#if card.codons}
-				<p class="mt-3 flex flex-wrap gap-2">
+				<p class="mt-2 flex flex-wrap gap-2">
 					{#each card.codons as { codon, kind } (codon)}
 						{@render chips(codon, kind)}
 					{/each}
 				</p>
 			{/if}
-			<div class="mt-4 flex flex-wrap items-center gap-2">
-				<button
-					type="button"
-					class="rounded bg-slate-900 px-4 py-2 font-semibold text-white"
-					onclick={onContinue}
-				>
-					{buttonLabel}
-				</button>
-				{#if onClearBoard}
-					<button
-						type="button"
-						class="rounded border border-slate-900 px-4 py-2 font-semibold"
-						onclick={onClearBoard}
-					>
-						Continue with a clear board
-					</button>
-				{/if}
-			</div>
+			<button
+				type="button"
+				class="mt-3 min-h-11 rounded bg-slate-900 px-4 font-semibold text-white"
+				onclick={onContinue}
+			>
+				{buttonLabel}
+			</button>
 			{#if !touch}
-				<p class="mt-2 text-xs text-slate-500">Enter = {buttonLabel}</p>
+				<span class="ml-2 text-xs text-slate-500">or press Enter</span>
 			{/if}
 		</div>
 	</div>
 {/snippet}
 
-{#snippet tipsToggle()}
-	<label class="flex items-center gap-2 text-sm">
-		<input
-			type="checkbox"
-			checked={showTips}
-			onchange={(event) => setShowTips(event.currentTarget.checked)}
-		/>
+{#snippet tipsSwitch()}
+	<button
+		type="button"
+		role="switch"
+		aria-checked={showTips}
+		class="flex min-h-11 items-center gap-3 text-sm"
+		onclick={() => setShowTips(!showTips)}
+	>
+		<span
+			class="relative h-7 w-12 shrink-0 rounded-full transition-colors {showTips
+				? 'bg-green-500'
+				: 'bg-slate-500'}"
+		>
+			<span
+				class="absolute top-1 h-5 w-5 rounded-full bg-white transition-all {showTips
+					? 'left-6'
+					: 'left-1'}"
+			></span>
+		</span>
 		Show tips in game
-	</label>
+	</button>
 {/snippet}
 
 {#snippet pieceGrid(piece: Piece, size: number)}
-	<div
+	<span
 		class="grid w-fit gap-px"
 		style:grid-template-columns="repeat({piece.size}, {size}px)"
 		aria-label="Next piece"
@@ -491,56 +514,68 @@
 			{@const square = piece.squares.find(
 				(s) => s.x === index % piece.size && s.y === Math.floor(index / piece.size)
 			)}
-			<div
-				class="flex items-center justify-center font-bold text-slate-900"
+			<span
 				style:width="{size}px"
 				style:height="{size}px"
-				style:font-size="{Math.round(size * 0.6)}px"
 				style:background-color={square ? COLOURS[square.base] : 'transparent'}
-			>
-				{square?.base ?? ''}
-			</div>
+			></span>
 		{/each}
-	</div>
+	</span>
 {/snippet}
 
-{#snippet touchButton(label: string, symbol: string, action: Action)}
-	<button
-		type="button"
-		aria-label={label}
-		class="flex h-14 touch-manipulation items-center justify-center rounded-lg bg-slate-800 text-2xl font-bold text-white select-none active:bg-slate-600"
-		onpointerdown={(event) => press(event, action)}
-		onpointerup={stopRepeat}
-		onpointerleave={stopRepeat}
-		onpointercancel={stopRepeat}
-		oncontextmenu={(event) => event.preventDefault()}
-	>
-		{symbol}
-	</button>
-{/snippet}
+<div class="flex flex-wrap items-start justify-center gap-6">
+	<div class="flex flex-col items-center">
+		<!-- Top bar: wordmark, score, level and next piece. Tap or click it to pause. -->
+		<button
+			type="button"
+			class="flex h-11 items-center justify-between gap-3 text-left disabled:cursor-default"
+			style:width="{barWidth}px"
+			onclick={togglePause}
+			disabled={!started || view.over || !!tip}
+			aria-label={paused ? 'Resume game' : 'Pause game'}
+		>
+			<span class="text-lg font-black tracking-tight">{APP.name}</span>
+			<span class="flex items-center gap-3">
+				<span class="text-right leading-tight">
+					<span class="block font-mono font-bold">{formatNumber(view.score.score)}</span>
+					<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
+				</span>
+				<span class="text-right leading-tight">
+					<span class="block font-mono font-bold">Lv {view.score.level}</span>
+					<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
+				</span>
+				<span class="flex h-8 w-8 items-center justify-center">
+					{#if started && !paused && !view.over}
+						{@render pieceGrid(view.next, 7)}
+					{/if}
+				</span>
+				{#if started && !view.over}
+					<span aria-hidden="true" class="text-sm opacity-60">{paused ? '▶' : '⏸'}</span>
+				{/if}
+			</span>
+		</button>
 
-<div class="flex flex-wrap items-start justify-center gap-6 lg:justify-start">
-	<div>
 		<!-- Goal bar: what to aim for right now. Fixed height, so the board never jumps. -->
 		<div
-			class="mb-1 flex h-16 flex-col items-center justify-center gap-1.5 text-center font-bold tracking-wide uppercase"
-			style:width="{boardPixelWidth}px"
+			class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
+			style:width="{barWidth}px"
 		>
 			{#if started && !view.over}
 				{#if chainOpen}
-					<p class="text-sm text-green-700">{chainHeadline}</p>
-					<p class="flex items-center gap-2 text-xs">
-						<span>Stop codons:</span>
+					<p class="text-green-700">
+						Chain ×2{bankable !== null ? ` · stop now: +${formatNumber(bankable)}` : ''}
+					</p>
+					<p class="flex items-center gap-1.5">
 						{@render chips('UAA', 'stop')}
 						{@render chips('UAG', 'stop')}
 						{@render chips('UGA', 'stop')}
 					</p>
 				{:else if startReady}
 					<p class="text-green-700">Start codon ready!</p>
-					<p class="text-xs">Clear its row to start a chain</p>
+					<p>Clear its row to start a chain</p>
 				{:else}
 					<p>Form a start codon</p>
-					<p class="flex items-center gap-2 text-xs">
+					<p class="flex items-center gap-1.5">
 						{@render chips('AUG', 'start')}
 						<span>anywhere in a row</span>
 					</p>
@@ -548,92 +583,85 @@
 			{/if}
 		</div>
 
-		<!-- Score bar: score, level, next piece and pause, on every screen size. -->
 		<div
-			class="mb-2 flex h-10 items-center justify-between gap-2 text-sm"
-			style:width="{boardPixelWidth}px"
-		>
-			<span>Score <strong class="font-mono">{view.score.score}</strong></span>
-			<span>Level <strong class="font-mono">{view.score.level}</strong></span>
-			<span class="flex items-center gap-1">
-				Next
-				{#if started && !paused && !view.over}
-					{@render pieceGrid(view.next, 9)}
-				{/if}
-			</span>
-			<button
-				type="button"
-				class="rounded bg-slate-200 px-2 py-1 font-semibold disabled:opacity-40"
-				onclick={togglePause}
-				disabled={!started || view.over || !!tip}
-				aria-label={paused ? 'Resume' : 'Pause'}
-			>
-				{paused ? '▶' : '⏸'}
-			</button>
-		</div>
-
-		<div
-			class="relative transition-shadow"
+			class="relative mt-1 transition-shadow select-none"
 			class:ring-4={chainOpen}
 			class:ring-green-400={chainOpen}
+			style:-webkit-touch-callout="none"
 		>
 			<canvas
 				bind:this={canvas}
 				style:width="{boardPixelWidth}px"
 				style:height="{boardPixelHeight}px"
+				style:touch-action="none"
+				onpointerdown={onBoardPointerDown}
+				onpointermove={onBoardPointerMove}
+				onpointerup={onBoardPointerUp}
+				onpointercancel={() => (gesture = null)}
 			>
-				Game board. The score, next piece and chain are listed beside it.
+				Game board. The score, level and next piece are shown above it.
 			</canvas>
 
 			{#if !started}
 				{@const card = howTo === null ? undefined : TIPS[howTo]}
 				{#if card && howTo !== null}
-					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo, null)}
+					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo)}
 				{:else}
 					<div
-						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 p-4 text-center text-white"
 					>
 						{#if mounted}
-							<button type="button" class="text-sm underline" onclick={() => (howTo = 0)}>
+							<button type="button" class="min-h-11 text-sm underline" onclick={() => (howTo = 0)}>
 								How to play
 							</button>
 							<button
 								type="button"
-								class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
+								class="rounded bg-white px-8 py-3 text-xl font-semibold text-slate-900"
 								onclick={start}
 							>
 								Start
 							</button>
-							{#if !touch}
-								<p class="text-sm">or press Enter</p>
-							{/if}
-							{@render tipsToggle()}
+							{@render tipsSwitch()}
+							<p class="text-xs opacity-80">
+								{#if touch}
+									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop · Tap the
+									top bar to pause
+								{:else}
+									← → move · ↓ down · ↑ or X turn · Z turn back · Space drop · P or click the board
+									to pause · Enter to start
+								{/if}
+							</p>
+							<a
+								class="text-xs opacity-80"
+								href={APP.sourceUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								Source code <span aria-hidden="true">↗</span><span class="sr-only">
+									(opens in a new tab)</span
+								>
+							</a>
 						{:else}
 							<p>Loading…</p>
 						{/if}
 					</div>
 				{/if}
 			{:else if tip}
-				{@render tipCard(
-					tip,
-					'Continue',
-					() => (tip = null),
-					tip.level > 1 ? continueWithClearBoard : null
-				)}
+				{@render tipCard(tip, 'Continue', () => (tip = null))}
 			{:else if view.over}
 				<div
 					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
 				>
 					<p class="text-2xl font-bold">Game over</p>
-					<p>Score: {view.score.score}</p>
+					<p>Score: {formatNumber(view.score.score)}</p>
 					<button
 						type="button"
-						class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
+						class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
 						onclick={start}
 					>
 						Play again
 					</button>
-					{@render tipsToggle()}
+					{@render tipsSwitch()}
 				</div>
 			{:else if paused}
 				<div
@@ -642,62 +670,28 @@
 					<p class="text-xl font-bold">Paused</p>
 					<button
 						type="button"
-						class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
+						class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
 						onclick={togglePause}
 					>
 						Resume
 					</button>
-					{#if !touch}
-						<p class="text-sm">or press P</p>
-					{/if}
 				</div>
 			{/if}
 		</div>
-
-		{#if touch}
-			<!-- Touch controls: turns and drop on top, moves underneath. -->
-			<div class="mt-3 grid grid-cols-3 gap-2" style:width="{boardPixelWidth}px">
-				{@render touchButton('Turn anticlockwise', '⟲', 'rotate-anticlockwise')}
-				{@render touchButton('Drop', 'DROP', 'drop')}
-				{@render touchButton('Turn clockwise', '⟳', 'rotate-clockwise')}
-				{@render touchButton('Move left', '←', 'left')}
-				{@render touchButton('Move down', '↓', 'down')}
-				{@render touchButton('Move right', '→', 'right')}
-			</div>
-		{/if}
 	</div>
 
-	<!-- Details for wide screens only; phones have no room for them. -->
-	<aside class="hidden w-64 flex-col gap-4 lg:flex">
-		<section>
-			<h2 class="font-semibold">Chain</h2>
-			{#if view.translation.chain}
-				<p class="font-mono text-sm">
-					{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
-				</p>
-				{#if view.translation.chain.length >= 2}
-					<p class="text-sm">
-						Worth +{chainBonus(view.translation.chain.length, view.score.level)} if a stop comes now
-					</p>
-				{/if}
-			{:else}
-				<p class="text-sm">No chain yet</p>
+	<!-- Chain details for wide screens only; phones have no room for them. -->
+	<aside class="hidden w-64 flex-col gap-2 pt-24 lg:flex">
+		<h2 class="font-semibold">Chain</h2>
+		{#if view.translation.chain}
+			<p class="font-mono text-sm">
+				{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
+			</p>
+			{#if bankable !== null}
+				<p class="text-sm">Worth +{formatNumber(bankable)} if a stop comes now</p>
 			{/if}
-			<p class="mt-1 text-sm">Rows {view.score.rows} · Chains {view.stats.chains}</p>
-		</section>
-
-		<section>
-			<h2 class="font-semibold">Reading</h2>
-			<ol class="font-mono text-sm">
-				{#each log as line, index (index)}
-					<li>{line}</li>
-				{/each}
-			</ol>
-		</section>
-
-		<section class="text-sm">
-			<h2 class="font-semibold">Keys</h2>
-			<p>← → move · ↓ soft drop · ↑ or X turn · Z turn back · Space drop · P pause</p>
-		</section>
+		{:else}
+			<p class="text-sm">No chain yet</p>
+		{/if}
 	</aside>
 </div>

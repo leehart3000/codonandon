@@ -15,7 +15,7 @@
 
 {@render children()}
 
-<footer>
+<footer class="mt-4 hidden text-xs sm:block">
 	<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
 		Source code <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
 	</a>
