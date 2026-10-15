@@ -192,6 +192,9 @@
 		act(action);
 	}
 
+	/** The whole play area, which takes gestures. */
+	let playArea: HTMLDivElement | undefined = $state();
+
 	/**
 	 * Touch gestures, anywhere in the play area (not on buttons or cards):
 	 * drag sideways = move, drag down = move down (in any order, without lifting),
@@ -244,27 +247,38 @@
 		if (Math.hypot(x - gesture.startX, y - gesture.startY) > 10) gesture.moved = true;
 		gesture.samples = [...gesture.samples, { x, y, t: now }].filter((s) => now - s.t < 120);
 
-		// Sideways: one column for every square's width dragged.
-		while (gesture && x - gesture.anchorX >= cell) {
-			act('right');
-			gesture.anchorX += cell;
-		}
-		while (gesture && gesture.anchorX - x >= cell) {
-			act('left');
-			gesture.anchorX -= cell;
-		}
+		// Which way is the finger mostly moving right now? Only that direction moves the piece,
+		// so a slight sideways wobble during a downward drag or flick can't nudge it off course.
+		const oldest = gesture.samples[0] ?? { x, y, t: now };
+		const movingSideways = Math.abs(x - oldest.x) > Math.abs(y - oldest.y);
 
-		// Down: one row for every square's height dragged. Stop if the piece lands,
-		// so the drag doesn't carry on into the next piece.
-		while (gesture && y - gesture.anchorY >= cell) {
-			if (act('down')?.locked) {
-				gesture = null;
-				return;
+		if (movingSideways) {
+			// One column for every square's width dragged.
+			while (gesture && x - gesture.anchorX >= cell) {
+				act('right');
+				gesture.anchorX += cell;
 			}
-			gesture.anchorY += cell;
+			while (gesture && gesture.anchorX - x >= cell) {
+				act('left');
+				gesture.anchorX -= cell;
+			}
+			// Ignore any up-and-down drift while moving sideways.
+			if (gesture) gesture.anchorY = y;
+		} else {
+			// One row for every square's height dragged. Stop if the piece lands,
+			// so the drag doesn't carry on into the next piece.
+			while (gesture && y - gesture.anchorY >= cell) {
+				if (act('down')?.locked) {
+					gesture = null;
+					return;
+				}
+				gesture.anchorY += cell;
+			}
+			// Moving back up resets the measure, so a later downward drag counts from there.
+			if (gesture && y < gesture.anchorY) gesture.anchorY = y;
+			// Ignore any sideways drift while moving down.
+			if (gesture) gesture.anchorX = x;
 		}
-		// Moving back up resets the measure, so a later downward drag counts from there.
-		if (gesture && y < gesture.anchorY) gesture.anchorY = y;
 	}
 
 	function onPointerUp(event: PointerEvent) {
@@ -448,7 +462,18 @@
 		}
 
 		frame = requestAnimationFrame(loop);
-		return () => cancelAnimationFrame(frame);
+		// While playing, stop iOS's own touch behaviour (magnifier, scrolling) in the play area,
+		// except on buttons, links and cards, which must still work.
+		function stopDefaultTouch(event: TouchEvent) {
+			const target = event.target as Element;
+			if (playing && !target.closest('button, a, [role="dialog"]')) event.preventDefault();
+		}
+		playArea?.addEventListener('touchstart', stopDefaultTouch, { passive: false });
+
+		return () => {
+			cancelAnimationFrame(frame);
+			playArea?.removeEventListener('touchstart', stopDefaultTouch);
+		};
 	});
 </script>
 
@@ -480,7 +505,7 @@
 			class="max-h-full overflow-y-auto rounded-lg bg-white p-4 text-slate-900 shadow-xl"
 		>
 			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
-				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length} · Level {card.level}
+				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length}
 			</p>
 			<h2 id="tip-title" class="text-lg font-bold">{card.title}</h2>
 			<p class="mt-1 text-sm">{card.text}</p>
@@ -549,6 +574,7 @@
 
 <!-- The whole play area takes gestures, so a swipe beside the board still controls the piece. -->
 <div
+	bind:this={playArea}
 	class="flex min-h-dvh flex-wrap items-start justify-center gap-6 pt-1 select-none"
 	style:touch-action={playing ? 'none' : 'auto'}
 	style:-webkit-touch-callout="none"
@@ -595,7 +621,7 @@
 		</div>
 
 		<!-- Goal bar: what to aim for right now. Shown with tips; fixed height, so the board never jumps. -->
-		{#if showTips}
+		{#if showTips && started}
 			<div
 				class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
 				style:width="{barWidth}px"
@@ -646,9 +672,6 @@
 						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 p-4 text-center text-white"
 					>
 						{#if mounted}
-							<button type="button" class="min-h-11 text-sm underline" onclick={() => (howTo = 0)}>
-								How to play
-							</button>
 							<button
 								type="button"
 								class="rounded bg-white px-8 py-3 text-xl font-semibold text-slate-900"
@@ -656,7 +679,16 @@
 							>
 								Start
 							</button>
-							{@render tipsSwitch()}
+							<div class="flex flex-col items-center">
+								<button
+									type="button"
+									class="min-h-11 text-sm underline"
+									onclick={() => (howTo = 0)}
+								>
+									Game tips
+								</button>
+								{@render tipsSwitch()}
+							</div>
 							<p class="text-xs opacity-80">
 								{#if touch}
 									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop

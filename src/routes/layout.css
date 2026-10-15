@@ -28,3 +28,10 @@ html,
 body {
 	overscroll-behavior: none;
 }
+
+/* A game, not a document: no text selection, magnifier or long-press menu. */
+body {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
