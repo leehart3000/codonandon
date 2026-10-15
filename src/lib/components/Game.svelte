@@ -14,6 +14,7 @@
 	import { TIPS, tipForLevel, type Tip } from '#lib/game/tips.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
+	import { redundancyHighlight, summariseAminoAcids } from '#lib/game/summary.js';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -76,6 +77,8 @@
 	/** Size of one square in pixels, fitted to the screen. */
 	let cell = $state(28);
 	let viewportWidth = $state(1024);
+	/** Points added at game over for an unfinished chain, shown on the stats screen. */
+	let finalBonus = $state(0);
 
 	const boardPixelWidth = $derived(BOARD_WIDTH * cell);
 	const boardPixelHeight = $derived(BOARD_HEIGHT * cell);
@@ -109,11 +112,16 @@
 			: { kind: 'start' as const, cells: [], squares: [] }
 	);
 
+	/** The game-over summary: amino acids made, and one fact about codon redundancy. */
+	const aminoSummary = $derived(view.over ? summariseAminoAcids(view.stats) : []);
+	const redundancyFact = $derived(redundancyHighlight(aminoSummary));
+
 	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
 		paused = false;
+		finalBonus = 0;
 		howTo = null;
 		started = true;
 		tip = showTips ? (tipForLevel(1) ?? null) : null;
@@ -124,6 +132,7 @@
 		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
+		if (result.gameOver) finalBonus = result.gameOver.unfinishedPoints;
 		if (showTips && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
 		}
@@ -715,19 +724,70 @@
 			{:else if tip}
 				{@render tipCard(tip, 'Continue', () => (tip = null))}
 			{:else if view.over}
-				<div
-					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
-				>
-					<p class="text-2xl font-bold">Game over</p>
-					<p>Score: {formatNumber(view.score.score)}</p>
-					<button
-						type="button"
-						class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
-						onclick={start}
-					>
-						Play again
-					</button>
-					{@render tipsSwitch()}
+				<div class="absolute inset-0 overflow-y-auto bg-slate-900/95 text-white">
+					<div class="flex min-h-full flex-col items-center justify-center gap-3 p-4 text-center">
+						<p class="text-xs font-bold tracking-widest uppercase opacity-70">Game over</p>
+						<p class="font-mono text-3xl font-black">{formatNumber(view.score.score)}</p>
+						{#if finalBonus > 0}
+							<p class="text-xs opacity-80">
+								Includes +{formatNumber(finalBonus)} for an unfinished chain
+							</p>
+						{/if}
+
+						<dl class="grid w-full grid-cols-4 gap-1 text-xs">
+							<div>
+								<dt class="opacity-70">Level</dt>
+								<dd class="font-mono text-base font-bold">{view.score.level}</dd>
+							</div>
+							<div>
+								<dt class="opacity-70">Rows</dt>
+								<dd class="font-mono text-base font-bold">{view.score.rows}</dd>
+							</div>
+							<div>
+								<dt class="opacity-70">Chains</dt>
+								<dd class="font-mono text-base font-bold">{view.stats.chains}</dd>
+							</div>
+							<div>
+								<dt class="opacity-70">Longest</dt>
+								<dd class="font-mono text-base font-bold">{view.stats.longestChain}</dd>
+							</div>
+						</dl>
+
+						<section class="w-full">
+							<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">Amino acids made</h2>
+							{#if aminoSummary.length > 0}
+								<ul class="mt-1 flex flex-wrap justify-center gap-1">
+									{#each aminoSummary as { aminoAcid, count } (aminoAcid)}
+										<li class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs">
+											<span aria-hidden="true">{AMINO_ACIDS[aminoAcid].short}</span>
+											<span class="sr-only">{AMINO_ACIDS[aminoAcid].name}</span>
+											×{count}
+										</li>
+									{/each}
+								</ul>
+								{#if redundancyFact}
+									<p class="mt-2 text-xs">
+										{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
+											.length} different codons: {redundancyFact.codons.join(', ')}. Many amino
+										acids have more than one codon.
+									</p>
+								{/if}
+							{:else}
+								<p class="mt-1 text-xs">
+									None this time. Form AUG anywhere in a row, then clear it, to start a chain.
+								</p>
+							{/if}
+						</section>
+
+						<button
+							type="button"
+							class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+							onclick={start}
+						>
+							Play again
+						</button>
+						{@render tipsSwitch()}
+					</div>
 				</div>
 			{:else if paused}
 				<div
