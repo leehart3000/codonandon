@@ -32,8 +32,8 @@
 	/** Opportunities: cyan for forming a START, orange for forming a STOP. */
 	const OPPORTUNITY_COLOURS = { start: '#22d3ee', stop: '#fb923c' } as const;
 
-	/** See-through pause on the local dev server (handy for screenshots); covered on the live site. */
-	const PAUSE_BACKGROUND = import.meta.env.DEV ? 'bg-slate-900/70' : 'bg-slate-900';
+	/** Where the "show tips" choice is remembered in this browser. */
+	const SHOW_TIPS_KEY = 'showTips';
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -45,6 +45,9 @@
 		' ': 'drop'
 	};
 
+	/** Actions that ignore a held-down key repeating, so one press is one drop or one turn. */
+	const NO_REPEAT: Action[] = ['drop', 'rotate-clockwise', 'rotate-anticlockwise'];
+
 	/** A fresh random seed for each new game. */
 	const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
 
@@ -54,7 +57,9 @@
 	let mounted = $state(false);
 	let started = $state(false);
 	let paused = $state(false);
-	/** The level-up card being shown, which pauses play until Continue. */
+	/** Whether tip cards appear during the game. */
+	let showTips = $state(true);
+	/** The tip card being shown, which pauses play until Continue. */
 	let tip = $state<Tip | null>(null);
 	/** Which "How to play" card is showing on the start screen, if any. */
 	let howTo = $state<number | null>(null);
@@ -78,7 +83,7 @@
 			: { kind: 'start' as const, cells: [], squares: [] }
 	);
 
-	/** Start a new game with a fresh seed, opening with the first card. */
+	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
@@ -86,7 +91,7 @@
 		paused = false;
 		howTo = null;
 		started = true;
-		tip = tipForLevel(1) ?? null;
+		tip = showTips ? (tipForLevel(1) ?? null) : null;
 	}
 
 	function act(action: Action) {
@@ -98,8 +103,25 @@
 		if (result.gameOver && result.gameOver.unfinishedPoints > 0) {
 			addLog(`Unfinished chain: +${result.gameOver.unfinishedPoints}`);
 		}
-		if (!view.over && view.score.level > levelBefore) {
+		if (showTips && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
+		}
+	}
+
+	/** Assist offered on tip cards: carry on with an empty board. */
+	function continueWithClearBoard() {
+		game.clearBoard();
+		view = game.state;
+		tip = null;
+	}
+
+	/** Remember the "show tips" choice in this browser. */
+	function setShowTips(value: boolean) {
+		showTips = value;
+		try {
+			localStorage.setItem(SHOW_TIPS_KEY, String(value));
+		} catch {
+			// Storage can be unavailable (e.g. private browsing); the choice just isn't remembered.
 		}
 	}
 
@@ -175,6 +197,7 @@
 		const action = KEYS[event.key];
 		if (!action) return;
 		event.preventDefault();
+		if (event.repeat && NO_REPEAT.includes(action)) return;
 		act(action);
 	}
 
@@ -294,9 +317,17 @@
 		};
 	});
 
-	// The automatic fall, timed by the level.
 	onMount(() => {
 		mounted = true;
+
+		// Restore the "show tips" choice, if this browser remembers one.
+		try {
+			showTips = localStorage.getItem(SHOW_TIPS_KEY) !== 'false';
+		} catch {
+			// Storage unavailable: keep the default (tips on).
+		}
+
+		// The automatic fall, timed by the level.
 		let last = performance.now();
 		let waited = 0;
 		let frame = 0;
@@ -339,14 +370,21 @@
 	</span>
 {/snippet}
 
-{#snippet tipCard(card: Tip, buttonLabel: string, onContinue: () => void)}
+{#snippet tipCard(
+	card: Tip,
+	buttonLabel: string,
+	onContinue: () => void,
+	onClearBoard: (() => void) | null
+)}
 	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-4">
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
 			class="rounded-lg bg-white p-5 text-slate-900 shadow-xl"
 		>
-			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">Level {card.level}</p>
+			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
+				Tip {TIPS.indexOf(card) + 1} of {TIPS.length} · Level {card.level}
+			</p>
 			<h2 id="tip-title" class="text-xl font-bold">{card.title}</h2>
 			<p class="mt-2 text-sm">{card.text}</p>
 			{#if card.codons}
@@ -356,14 +394,25 @@
 					{/each}
 				</p>
 			{/if}
-			<button
-				type="button"
-				class="mt-4 rounded bg-slate-900 px-4 py-2 font-semibold text-white"
-				onclick={onContinue}
-			>
-				{buttonLabel}
-			</button>
-			<span class="ml-2 text-xs text-slate-500">or press Enter</span>
+			<div class="mt-4 flex flex-wrap items-center gap-2">
+				<button
+					type="button"
+					class="rounded bg-slate-900 px-4 py-2 font-semibold text-white"
+					onclick={onContinue}
+				>
+					{buttonLabel}
+				</button>
+				{#if onClearBoard}
+					<button
+						type="button"
+						class="rounded border border-slate-900 px-4 py-2 font-semibold"
+						onclick={onClearBoard}
+					>
+						Continue with a clear board
+					</button>
+				{/if}
+			</div>
+			<p class="mt-2 text-xs text-slate-500">Enter = {buttonLabel}</p>
 		</div>
 	</div>
 {/snippet}
@@ -429,7 +478,7 @@
 			{#if !started}
 				{@const card = howTo === null ? undefined : TIPS[howTo]}
 				{#if card && howTo !== null}
-					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo)}
+					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo, null)}
 				{:else}
 					<div
 						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
@@ -443,6 +492,14 @@
 								Start
 							</button>
 							<p class="text-sm">or press Enter</p>
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={showTips}
+									onchange={(event) => setShowTips(event.currentTarget.checked)}
+								/>
+								Show tips during the game ({TIPS.length})
+							</label>
 							<button type="button" class="text-sm underline" onclick={() => (howTo = 0)}>
 								How to play
 							</button>
@@ -452,7 +509,12 @@
 					</div>
 				{/if}
 			{:else if tip}
-				{@render tipCard(tip, 'Continue', () => (tip = null))}
+				{@render tipCard(
+					tip,
+					'Continue',
+					() => (tip = null),
+					tip.level > 1 ? continueWithClearBoard : null
+				)}
 			{:else if view.over}
 				<div
 					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
@@ -468,9 +530,7 @@
 					</button>
 				</div>
 			{:else if paused}
-				<div
-					class="absolute inset-0 flex items-center justify-center text-white {PAUSE_BACKGROUND}"
-				>
+				<div class="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
 					<p class="text-xl font-bold">Paused: press P</p>
 				</div>
 			{/if}

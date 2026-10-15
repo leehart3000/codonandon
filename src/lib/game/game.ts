@@ -46,6 +46,8 @@ export interface GameState {
 	translation: TranslationState;
 	score: ScoreState;
 	stats: Stats;
+	/** How many times the player chose a clear board at a tip card (an assist). */
+	clearedBoards: number;
 	over: boolean;
 }
 
@@ -97,6 +99,7 @@ export function createGame(options: GameOptions) {
 		translation: initialTranslationState,
 		score: initialScore,
 		stats: { aminoAcids: {}, codons: {}, chains: 0, longestChain: 0 },
+		clearedBoards: 0,
 		over: false
 	};
 
@@ -170,11 +173,23 @@ export function createGame(options: GameOptions) {
 		return { locked: true, clear, gameOver: null };
 	}
 
+	/** Assist: empty the board, keeping score, level and chain. The current piece restarts at the top. */
+	function clearBoard() {
+		if (state.over || !state.active) return;
+		state = {
+			...state,
+			board: createBoard(),
+			active: spawn(state.active.piece),
+			clearedBoards: state.clearedBoards + 1
+		};
+	}
+
 	return {
 		get state() {
 			return state;
 		},
-		act
+		act,
+		clearBoard
 	};
 }
 

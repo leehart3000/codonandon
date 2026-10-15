@@ -113,6 +113,16 @@ describe('game', () => {
 		expect(game.state.translation.chain).toBeNull();
 	});
 
+	it('can clear the board as an assist, keeping the score and counting it', () => {
+		const game = createGame({ seed: 1 });
+		game.act('drop');
+		const score = game.state.score;
+		game.clearBoard();
+		expect(filled(game.state.board)).toBe(0);
+		expect(game.state.score).toEqual(score);
+		expect(game.state.clearedBoards).toBe(1);
+	});
+
 	it('ends the game when a new piece no longer fits, then ignores moves', () => {
 		const game = createGame({ seed: 3 });
 		for (let i = 0; i < 500 && !game.state.over; i++) game.act('drop');
