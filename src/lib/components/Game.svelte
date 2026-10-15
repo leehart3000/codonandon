@@ -12,9 +12,10 @@
 	import type { Piece } from '#lib/game/pieces.js';
 	import { chainBonus } from '#lib/game/scoring.js';
 	import { TIPS, tipForLevel, type Tip } from '#lib/game/tips.js';
-	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
+	import { AMINO_ACIDS, type AminoAcid, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
 	import { redundancyHighlight, summariseAminoAcids } from '#lib/game/summary.js';
+	import { describeLength } from '#lib/genetics/peptides.js';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -67,6 +68,8 @@
 	let paused = $state(false);
 	/** Whether tip cards and the goal bar appear during the game. */
 	let showTips = $state(true);
+	/** The tips setting for the game in progress: changes to the switch apply from the next game. */
+	let tipsThisGame = $state(true);
 	/** The tip card being shown, which pauses play until Continue. */
 	let tip = $state<Tip | null>(null);
 	/** Which "How to play" card is showing on the start screen, if any. */
@@ -115,6 +118,17 @@
 	/** The game-over summary: amino acids made, and one fact about codon redundancy. */
 	const aminoSummary = $derived(view.over ? summariseAminoAcids(view.stats) : []);
 	const redundancyFact = $derived(redundancyHighlight(aminoSummary));
+	/** All 20 amino acids, for the "collected" display on the game-over screen. */
+	const ALL_AMINO_ACIDS = Object.keys(AMINO_ACIDS) as AminoAcid[];
+	const collected = $derived(
+		ALL_AMINO_ACIDS.filter((aminoAcid) => view.stats.aminoAcids[aminoAcid])
+	);
+	/** The longest chain, shortened for display if very long. */
+	const longestShown = $derived(
+		view.stats.longestChainSequence.length > 12
+			? [...view.stats.longestChainSequence.slice(0, 12).map((a) => AMINO_ACIDS[a].short), '…']
+			: view.stats.longestChainSequence.map((a) => AMINO_ACIDS[a].short)
+	);
 
 	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
@@ -124,7 +138,9 @@
 		finalBonus = 0;
 		howTo = null;
 		started = true;
-		tip = showTips ? (tipForLevel(1) ?? null) : null;
+		tipsThisGame = showTips;
+		fitBoard();
+		tip = tipsThisGame ? (tipForLevel(1) ?? null) : null;
 	}
 
 	function act(action: Action): ActionResult | null {
@@ -133,7 +149,7 @@
 		const result = game.act(action);
 		view = game.state;
 		if (result.gameOver) finalBonus = result.gameOver.unfinishedPoints;
-		if (showTips && !view.over && view.score.level > levelBefore) {
+		if (tipsThisGame && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
 		}
 		return result;
@@ -142,7 +158,8 @@
 	/** Remember the "show tips" choice, and resize the board (the goal bar comes and goes with it). */
 	function setShowTips(value: boolean) {
 		showTips = value;
-		fitBoard();
+		// Only resize on the start screen; during or after a game, it applies from the next game.
+		if (!started) fitBoard();
 		try {
 			localStorage.setItem(SHOW_TIPS_KEY, String(value));
 		} catch {
@@ -322,7 +339,7 @@
 	/** Fit the board to the screen, leaving room for the top bar (and the goal bar, if tips are on). */
 	function fitBoard() {
 		viewportWidth = window.innerWidth;
-		const reserved = 44 + (showTips ? 44 : 0) + 24;
+		const reserved = 44 + ((started ? tipsThisGame : showTips) ? 44 : 0) + 24;
 		const byHeight = Math.floor((window.innerHeight - reserved) / BOARD_HEIGHT);
 		const byWidth = Math.floor((window.innerWidth - 16) / BOARD_WIDTH);
 		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, byHeight, byWidth));
@@ -630,7 +647,7 @@
 		</div>
 
 		<!-- Goal bar: what to aim for right now. Shown with tips; fixed height, so the board never jumps. -->
-		{#if showTips && started}
+		{#if tipsThisGame && started}
 			<div
 				class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
 				style:width="{barWidth}px"
@@ -753,30 +770,49 @@
 							</div>
 						</dl>
 
-						<section class="w-full">
-							<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">Amino acids made</h2>
-							{#if aminoSummary.length > 0}
-								<ul class="mt-1 flex flex-wrap justify-center gap-1">
-									{#each aminoSummary as { aminoAcid, count } (aminoAcid)}
-										<li class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs">
-											<span aria-hidden="true">{AMINO_ACIDS[aminoAcid].short}</span>
-											<span class="sr-only">{AMINO_ACIDS[aminoAcid].name}</span>
-											×{count}
-										</li>
-									{/each}
-								</ul>
-								{#if redundancyFact}
-									<p class="mt-2 text-xs">
-										{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
-											.length} different codons: {redundancyFact.codons.join(', ')}. Many amino
-										acids have more than one codon.
-									</p>
-								{/if}
-							{:else}
+						{#if view.stats.longestChain >= 2}
+							<section class="w-full">
+								<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">
+									Your longest chain
+								</h2>
+								<p class="mt-1 font-mono text-xs break-words">{longestShown.join('–')}</p>
 								<p class="mt-1 text-xs">
-									None this time. Form AUG anywhere in a row, then clear it, to start a chain.
+									{view.stats.longestChain} amino acids: {describeLength(view.stats.longestChain)}.
 								</p>
-							{/if}
+							</section>
+						{:else if redundancyFact}
+							<p class="text-xs">
+								{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
+									.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
+								have more than one codon.
+							</p>
+						{:else if collected.length === 0}
+							<p class="text-xs">
+								No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
+								chain.
+							</p>
+						{/if}
+
+						<section class="w-full">
+							<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">
+								Amino acids collected: {collected.length} of {ALL_AMINO_ACIDS.length}
+							</h2>
+							<ul class="mt-1 grid grid-cols-5 gap-1">
+								{#each ALL_AMINO_ACIDS as aminoAcid (aminoAcid)}
+									{@const made = collected.includes(aminoAcid)}
+									<li
+										class="rounded px-1 py-0.5 font-mono text-xs"
+										class:bg-white={made}
+										class:text-slate-900={made}
+										class:opacity-30={!made}
+									>
+										<span aria-hidden="true">{AMINO_ACIDS[aminoAcid].short}</span>
+										<span class="sr-only">
+											{AMINO_ACIDS[aminoAcid].name}: {made ? 'collected' : 'not collected'}
+										</span>
+									</li>
+								{/each}
+							</ul>
 						</section>
 
 						<button

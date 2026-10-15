@@ -88,6 +88,7 @@ describe('game', () => {
 		expect(game.state.stats).toMatchObject({
 			chains: 1,
 			longestChain: 3,
+			longestChainSequence: ['M', 'A', 'W'],
 			aminoAcids: { M: 1, A: 1, W: 1 }
 		});
 		expect(filled(game.state.board)).toBe(0);

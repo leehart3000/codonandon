@@ -7,7 +7,8 @@ const stats = (codons: Stats['codons']): Stats => ({
 	aminoAcids: {},
 	codons,
 	chains: 0,
-	longestChain: 0
+	longestChain: 0,
+	longestChainSequence: []
 });
 
 describe('game summary', () => {

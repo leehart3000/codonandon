@@ -34,6 +34,8 @@ export interface Stats {
 	chains: number;
 	/** Amino acids in the longest completed chain. */
 	longestChain: number;
+	/** The amino acids of the longest completed chain, in order. */
+	longestChainSequence: AminoAcid[];
 }
 
 export interface GameState {
@@ -98,7 +100,7 @@ export function createGame(options: GameOptions) {
 		next: nextPiece(),
 		translation: initialTranslationState,
 		score: initialScore,
-		stats: { aminoAcids: {}, codons: {}, chains: 0, longestChain: 0 },
+		stats: { aminoAcids: {}, codons: {}, chains: 0, longestChain: 0, longestChainSequence: [] },
 		clearedBoards: 0,
 		over: false
 	};
@@ -198,7 +200,7 @@ export function createGame(options: GameOptions) {
 function updateStats(stats: Stats, events: readonly ReadEvent[]): Stats {
 	const aminoAcids = { ...stats.aminoAcids };
 	const codons = { ...stats.codons };
-	let { chains, longestChain } = stats;
+	let { chains, longestChain, longestChainSequence } = stats;
 
 	for (const event of events) {
 		if (event.type === 'start' || event.type === 'add') {
@@ -207,9 +209,12 @@ function updateStats(stats: Stats, events: readonly ReadEvent[]): Stats {
 			codons[event.codon] = (codons[event.codon] ?? 0) + 1;
 		} else if (event.type === 'complete') {
 			chains += 1;
-			longestChain = Math.max(longestChain, event.chain.length);
+			if (event.chain.length > longestChain) {
+				longestChain = event.chain.length;
+				longestChainSequence = event.chain;
+			}
 		}
 	}
 
-	return { aminoAcids, codons, chains, longestChain };
+	return { aminoAcids, codons, chains, longestChain, longestChainSequence };
 }
