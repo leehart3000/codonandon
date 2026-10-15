@@ -3,8 +3,8 @@
 	import { APP } from '#lib/config.js';
 </script>
 
-<!-- On small screens the heading is visually hidden (still read by screen readers), to give the board room. -->
-<header class="sr-only sm:not-sr-only">
+<!-- Visually hidden: the wordmark in the game's top bar replaces it. Still read by screen readers and search engines. -->
+<header class="sr-only">
 	<h1>{APP.name}</h1>
 	<p>{APP.description}</p>
 </header>

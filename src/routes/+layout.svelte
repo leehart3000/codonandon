@@ -1,8 +1,8 @@
 <script lang="ts">
 	import './layout.css';
 	import { APP } from '#lib/config.js';
-	import type { LayoutProps } from './$types';
 	import UpdateNotice from '#lib/UpdateNotice.svelte';
+	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
 </script>
@@ -15,10 +15,4 @@
 
 {@render children()}
 
-<footer class="mt-4 hidden text-xs sm:block">
-	<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
-		Source code <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
-	</a>
-	(AGPL-3.0-only)
-</footer>
 <UpdateNotice />

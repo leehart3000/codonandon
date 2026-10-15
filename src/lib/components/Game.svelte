@@ -35,6 +35,10 @@
 	const MIN_CELL = 14;
 	const MAX_CELL = 32;
 
+	/** Gesture tuning: a tap is shorter than this, and a flick faster than this (pixels per ms). */
+	const TAP_TIME = 300;
+	const FLICK_SPEED = 0.6;
+
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
 		ArrowRight: 'right',
@@ -60,7 +64,7 @@
 	let mounted = $state(false);
 	let started = $state(false);
 	let paused = $state(false);
-	/** Whether tip cards appear during the game. */
+	/** Whether tip cards and the goal bar appear during the game. */
 	let showTips = $state(true);
 	/** The tip card being shown, which pauses play until Continue. */
 	let tip = $state<Tip | null>(null);
@@ -75,8 +79,10 @@
 
 	const boardPixelWidth = $derived(BOARD_WIDTH * cell);
 	const boardPixelHeight = $derived(BOARD_HEIGHT * cell);
-	/** The bars above the board may be wider than the board on phones, using the side space. */
-	const barWidth = $derived(Math.max(boardPixelWidth, Math.min(viewportWidth - 16, 420)));
+	/** On phones, the bars may be wider than the board, using the side space. */
+	const barWidth = $derived(
+		touch ? Math.max(boardPixelWidth, Math.min(viewportWidth - 16, 420)) : boardPixelWidth
+	);
 
 	const playing = $derived(started && !paused && !tip && !view.over);
 	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
@@ -124,9 +130,10 @@
 		return result;
 	}
 
-	/** Remember the "show tips" choice in this browser. */
+	/** Remember the "show tips" choice, and resize the board (the goal bar comes and goes with it). */
 	function setShowTips(value: boolean) {
 		showTips = value;
+		fitBoard();
 		try {
 			localStorage.setItem(SHOW_TIPS_KEY, String(value));
 		} catch {
@@ -186,81 +193,99 @@
 	}
 
 	/**
-	 * Gestures on the board (touch only):
-	 * drag left/right = move, drag down = move down, flick down = drop,
-	 * tap = turn clockwise, swipe up = turn anticlockwise.
+	 * Touch gestures, anywhere in the play area (not on buttons or cards):
+	 * drag sideways = move, drag down = move down (in any order, without lifting),
+	 * flick down = drop, tap = turn clockwise, swipe up = turn anticlockwise.
 	 * With a mouse, clicking the board pauses instead.
 	 */
 	let gesture: {
 		id: number;
-		x: number;
-		y: number;
+		startX: number;
+		startY: number;
+		/** Where the finger was when the piece last moved sideways / down. */
+		anchorX: number;
+		anchorY: number;
 		time: number;
-		axis: 'x' | 'y' | null;
-		columns: number;
-		rows: number;
+		moved: boolean;
+		/** Recent finger positions, for measuring the speed of a flick. */
+		samples: { x: number; y: number; t: number }[];
 	} | null = null;
 
-	function onBoardPointerDown(event: PointerEvent) {
+	function onPointerDown(event: PointerEvent) {
+		const target = event.target as Element;
+		if (target.closest('button, a, [role="dialog"]')) return;
+
 		if (event.pointerType === 'mouse') {
-			togglePause();
+			if (target === canvas) togglePause();
 			return;
 		}
 		if (!playing) return;
+
 		event.preventDefault();
-		canvas?.setPointerCapture(event.pointerId);
+		(event.currentTarget as Element).setPointerCapture(event.pointerId);
+		const now = performance.now();
 		gesture = {
 			id: event.pointerId,
-			x: event.clientX,
-			y: event.clientY,
-			time: performance.now(),
-			axis: null,
-			columns: 0,
-			rows: 0
+			startX: event.clientX,
+			startY: event.clientY,
+			anchorX: event.clientX,
+			anchorY: event.clientY,
+			time: now,
+			moved: false,
+			samples: [{ x: event.clientX, y: event.clientY, t: now }]
 		};
 	}
 
-	function onBoardPointerMove(event: PointerEvent) {
+	function onPointerMove(event: PointerEvent) {
 		if (!gesture || event.pointerId !== gesture.id) return;
-		const dx = event.clientX - gesture.x;
-		const dy = event.clientY - gesture.y;
+		const { clientX: x, clientY: y } = event;
+		const now = performance.now();
 
-		// Decide once whether this is a sideways or an up-and-down gesture.
-		if (!gesture.axis && Math.hypot(dx, dy) > 10) {
-			gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+		if (Math.hypot(x - gesture.startX, y - gesture.startY) > 10) gesture.moved = true;
+		gesture.samples = [...gesture.samples, { x, y, t: now }].filter((s) => now - s.t < 120);
+
+		// Sideways: one column for every square's width dragged.
+		while (gesture && x - gesture.anchorX >= cell) {
+			act('right');
+			gesture.anchorX += cell;
+		}
+		while (gesture && gesture.anchorX - x >= cell) {
+			act('left');
+			gesture.anchorX -= cell;
 		}
 
-		if (gesture.axis === 'x') {
-			const columns = Math.trunc(dx / cell);
-			while (gesture && gesture.columns < columns) {
-				act('right');
-				gesture.columns++;
+		// Down: one row for every square's height dragged. Stop if the piece lands,
+		// so the drag doesn't carry on into the next piece.
+		while (gesture && y - gesture.anchorY >= cell) {
+			if (act('down')?.locked) {
+				gesture = null;
+				return;
 			}
-			while (gesture && gesture.columns > columns) {
-				act('left');
-				gesture.columns--;
-			}
-		} else if (gesture.axis === 'y' && dy > 0) {
-			const rows = Math.trunc(dy / cell);
-			while (gesture && gesture.rows < rows) {
-				// If the piece lands, stop: the drag must not carry on into the next piece.
-				if (act('down')?.locked) gesture = null;
-				else gesture.rows++;
-			}
+			gesture.anchorY += cell;
 		}
+		// Moving back up resets the measure, so a later downward drag counts from there.
+		if (gesture && y < gesture.anchorY) gesture.anchorY = y;
 	}
 
-	function onBoardPointerUp(event: PointerEvent) {
+	function onPointerUp(event: PointerEvent) {
 		if (!gesture || event.pointerId !== gesture.id) return;
-		const dy = event.clientY - gesture.y;
-		const elapsed = performance.now() - gesture.time;
+		const { clientX: x, clientY: y } = event;
+		const now = performance.now();
+		const dx = x - gesture.startX;
+		const dy = y - gesture.startY;
 
-		if (!gesture.axis && elapsed < 300) {
+		// The finger's speed just before lifting decides whether this was a flick.
+		const oldest = gesture.samples[0] ?? { x, y, t: now };
+		const elapsed = Math.max(now - oldest.t, 1);
+		const speedY = (y - oldest.y) / elapsed;
+		const speedX = (x - oldest.x) / elapsed;
+
+		if (!gesture.moved && now - gesture.time < TAP_TIME) {
 			act('rotate-clockwise');
-		} else if (gesture.axis === 'y') {
-			const speed = dy / Math.max(elapsed, 1);
-			if (dy > 2 * cell && speed > 0.6) act('drop');
-			else if (dy < -2 * cell) act('rotate-anticlockwise');
+		} else if (speedY > FLICK_SPEED && speedY > Math.abs(speedX)) {
+			act('drop');
+		} else if (dy < -2 * cell && Math.abs(dy) > Math.abs(dx)) {
+			act('rotate-anticlockwise');
 		}
 		gesture = null;
 	}
@@ -271,11 +296,10 @@
 		gesture = null;
 	}
 
-	/** Fit the board to the screen, leaving room for the bars (and, on wide screens, the heading). */
+	/** Fit the board to the screen, leaving room for the top bar (and the goal bar, if tips are on). */
 	function fitBoard() {
 		viewportWidth = window.innerWidth;
-		const wide = window.innerWidth >= 640;
-		const reserved = 44 + 44 + 24 + (wide ? 120 : 0);
+		const reserved = 44 + (showTips ? 44 : 0) + 24;
 		const byHeight = Math.floor((window.innerHeight - reserved) / BOARD_HEIGHT);
 		const byWidth = Math.floor((window.innerWidth - 16) / BOARD_WIDTH);
 		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, byHeight, byWidth));
@@ -396,7 +420,6 @@
 	onMount(() => {
 		mounted = true;
 		touch = window.matchMedia('(pointer: coarse)').matches;
-		fitBoard();
 
 		// Restore the "show tips" choice, if this browser remembers one.
 		try {
@@ -404,6 +427,7 @@
 		} catch {
 			// Storage unavailable: keep the default (tips on).
 		}
+		fitBoard();
 
 		// The automatic fall, timed by the level.
 		let last = performance.now();
@@ -523,81 +547,92 @@
 	</span>
 {/snippet}
 
-<div class="flex flex-wrap items-start justify-center gap-6">
+<!-- The whole play area takes gestures, so a swipe beside the board still controls the piece. -->
+<div
+	class="flex min-h-dvh flex-wrap items-start justify-center gap-6 pt-1 select-none"
+	style:touch-action={playing ? 'none' : 'auto'}
+	style:-webkit-touch-callout="none"
+	onpointerdown={onPointerDown}
+	onpointermove={onPointerMove}
+	onpointerup={onPointerUp}
+	onpointercancel={() => (gesture = null)}
+	role="presentation"
+>
 	<div class="flex flex-col items-center">
-		<!-- Top bar: wordmark, score, level and next piece. Tap or click it to pause. -->
-		<button
-			type="button"
-			class="flex h-11 items-center justify-between gap-3 text-left disabled:cursor-default"
-			style:width="{barWidth}px"
-			onclick={togglePause}
-			disabled={!started || view.over || !!tip}
-			aria-label={paused ? 'Resume game' : 'Pause game'}
-		>
+		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
+		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
 			<span class="text-lg font-black tracking-tight">{APP.name}</span>
-			<span class="flex items-center gap-3">
-				<span class="text-right leading-tight">
-					<span class="block font-mono font-bold">{formatNumber(view.score.score)}</span>
-					<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
-				</span>
-				<span class="text-right leading-tight">
-					<span class="block font-mono font-bold">Lv {view.score.level}</span>
-					<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
-				</span>
-				<span class="flex h-8 w-8 items-center justify-center">
-					{#if started && !paused && !view.over}
-						{@render pieceGrid(view.next, 7)}
-					{/if}
-				</span>
-				{#if started && !view.over}
-					<span aria-hidden="true" class="text-sm opacity-60">{paused ? '▶' : '⏸'}</span>
+			<span class="flex h-8 flex-1 items-center justify-center">
+				{#if started && !paused && !view.over}
+					{@render pieceGrid(view.next, 7)}
 				{/if}
 			</span>
-		</button>
-
-		<!-- Goal bar: what to aim for right now. Fixed height, so the board never jumps. -->
-		<div
-			class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
-			style:width="{barWidth}px"
-		>
-			{#if started && !view.over}
-				{#if chainOpen}
-					<p class="text-green-700">
-						Chain ×2{bankable !== null ? ` · stop now: +${formatNumber(bankable)}` : ''}
-					</p>
-					<p class="flex items-center gap-1.5">
-						{@render chips('UAA', 'stop')}
-						{@render chips('UAG', 'stop')}
-						{@render chips('UGA', 'stop')}
-					</p>
-				{:else if startReady}
-					<p class="text-green-700">Start codon ready!</p>
-					<p>Clear its row to start a chain</p>
-				{:else}
-					<p>Form a start codon</p>
-					<p class="flex items-center gap-1.5">
-						{@render chips('AUG', 'start')}
-						<span>anywhere in a row</span>
-					</p>
-				{/if}
+			<span class="text-right leading-tight">
+				<span class="block font-mono font-bold">{formatNumber(view.score.score)}</span>
+				<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
+			</span>
+			<span class="text-right leading-tight">
+				<span class="block font-mono font-bold">Lv {view.score.level}</span>
+				<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
+			</span>
+			{#if touch}
+				<button
+					type="button"
+					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-900 disabled:opacity-30"
+					onclick={togglePause}
+					disabled={!started || view.over || !!tip}
+					aria-label={paused ? 'Resume game' : 'Pause game'}
+				>
+					<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+						{#if paused}
+							<path d="M8 5v14l11-7z" />
+						{:else}
+							<path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+						{/if}
+					</svg>
+				</button>
 			{/if}
 		</div>
 
+		<!-- Goal bar: what to aim for right now. Shown with tips; fixed height, so the board never jumps. -->
+		{#if showTips}
+			<div
+				class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
+				style:width="{barWidth}px"
+			>
+				{#if started && !view.over}
+					{#if chainOpen}
+						<p class="text-green-700">
+							Chain ×2{bankable !== null ? ` · stop now: +${formatNumber(bankable)}` : ''}
+						</p>
+						<p class="flex items-center gap-1.5">
+							{@render chips('UAA', 'stop')}
+							{@render chips('UAG', 'stop')}
+							{@render chips('UGA', 'stop')}
+						</p>
+					{:else if startReady}
+						<p class="text-green-700">Start codon ready!</p>
+						<p>Clear its row to start a chain</p>
+					{:else}
+						<p>Form a start codon</p>
+						<p class="flex items-center gap-1.5">
+							{@render chips('AUG', 'start')}
+							<span>anywhere in a row</span>
+						</p>
+					{/if}
+				{/if}
+			</div>
+		{/if}
+
 		<div
-			class="relative mt-1 transition-shadow select-none"
+			class="relative mt-1 transition-shadow"
 			class:ring-4={chainOpen}
 			class:ring-green-400={chainOpen}
-			style:-webkit-touch-callout="none"
 		>
 			<canvas
 				bind:this={canvas}
 				style:width="{boardPixelWidth}px"
 				style:height="{boardPixelHeight}px"
-				style:touch-action="none"
-				onpointerdown={onBoardPointerDown}
-				onpointermove={onBoardPointerMove}
-				onpointerup={onBoardPointerUp}
-				onpointercancel={() => (gesture = null)}
 			>
 				Game board. The score, level and next piece are shown above it.
 			</canvas>
@@ -624,8 +659,7 @@
 							{@render tipsSwitch()}
 							<p class="text-xs opacity-80">
 								{#if touch}
-									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop · Tap the
-									top bar to pause
+									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop
 								{:else}
 									← → move · ↓ down · ↑ or X turn · Z turn back · Space drop · P or click the board
 									to pause · Enter to start
@@ -637,7 +671,7 @@
 								target="_blank"
 								rel="noopener noreferrer"
 							>
-								Source code <span aria-hidden="true">↗</span><span class="sr-only">
+								Source code (AGPL-3.0) <span aria-hidden="true">↗</span><span class="sr-only">
 									(opens in a new tab)</span
 								>
 							</a>
@@ -680,18 +714,20 @@
 		</div>
 	</div>
 
-	<!-- Chain details for wide screens only; phones have no room for them. -->
-	<aside class="hidden w-64 flex-col gap-2 pt-24 lg:flex">
-		<h2 class="font-semibold">Chain</h2>
-		{#if view.translation.chain}
-			<p class="font-mono text-sm">
-				{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
-			</p>
-			{#if bankable !== null}
-				<p class="text-sm">Worth +{formatNumber(bankable)} if a stop comes now</p>
+	<!-- Chain details for wide screens, once a game has started. -->
+	{#if started}
+		<aside class="hidden w-64 flex-col gap-2 pt-24 lg:flex">
+			<h2 class="font-semibold">Chain</h2>
+			{#if view.translation.chain}
+				<p class="font-mono text-sm">
+					{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
+				</p>
+				{#if bankable !== null}
+					<p class="text-sm">Worth +{formatNumber(bankable)} if a stop comes now</p>
+				{/if}
+			{:else}
+				<p class="text-sm">No chain yet</p>
 			{/if}
-		{:else}
-			<p class="text-sm">No chain yet</p>
-		{/if}
-	</aside>
+		</aside>
+	{/if}
 </div>

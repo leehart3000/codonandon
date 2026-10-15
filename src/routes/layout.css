@@ -22,3 +22,9 @@ body {
 	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
 		env(safe-area-inset-left);
 }
+
+/* No bouncing or pull-to-refresh: a missed swipe must never reload the game. */
+html,
+body {
+	overscroll-behavior: none;
+}
