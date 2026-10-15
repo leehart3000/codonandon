@@ -10,6 +10,7 @@
 	} from '#lib/game/highlights.js';
 	import type { Piece } from '#lib/game/pieces.js';
 	import { chainBonus } from '#lib/game/scoring.js';
+	import { TIPS, tipForLevel, type Tip } from '#lib/game/tips.js';
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
 
@@ -26,9 +27,13 @@
 		C: '#7aa8d6'
 	};
 
-	/** START glows green, STOP glows orange (banking a chain is good news), opportunities cyan. */
+	/** START glows green, STOP glows orange (banking a chain is good news). */
 	const MARK_COLOURS = { start: '#4ade80', stop: '#fb923c' } as const;
+	/** Opportunities: cyan for forming a START, orange for forming a STOP. */
 	const OPPORTUNITY_COLOURS = { start: '#22d3ee', stop: '#fb923c' } as const;
+
+	/** See-through pause on the local dev server (handy for screenshots); covered on the live site. */
+	const PAUSE_BACKGROUND = import.meta.env.DEV ? 'bg-slate-900/70' : 'bg-slate-900';
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -49,6 +54,10 @@
 	let mounted = $state(false);
 	let started = $state(false);
 	let paused = $state(false);
+	/** The level-up card being shown, which pauses play until Continue. */
+	let tip = $state<Tip | null>(null);
+	/** Which "How to play" card is showing on the start screen, if any. */
+	let howTo = $state<number | null>(null);
 	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
 
@@ -69,23 +78,35 @@
 			: { kind: 'start' as const, cells: [], squares: [] }
 	);
 
-	/** Start a new game with a fresh seed. */
+	/** Start a new game with a fresh seed, opening with the first card. */
 	function start() {
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
 		log = [];
 		paused = false;
+		howTo = null;
 		started = true;
+		tip = tipForLevel(1) ?? null;
 	}
 
 	function act(action: Action) {
-		if (!started || paused) return;
+		if (!started || paused || tip) return;
+		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
 		if (result.clear) describeClear(result.clear);
 		if (result.gameOver && result.gameOver.unfinishedPoints > 0) {
 			addLog(`Unfinished chain: +${result.gameOver.unfinishedPoints}`);
 		}
+		if (!view.over && view.score.level > levelBefore) {
+			tip = tipForLevel(view.score.level) ?? null;
+		}
+	}
+
+	/** Step through the "How to play" cards, closing after the last one. */
+	function nextHowTo() {
+		if (howTo === null) return;
+		howTo = howTo + 1 < TIPS.length ? howTo + 1 : null;
 	}
 
 	/** Add lines to the reading log, newest at the top. */
@@ -119,6 +140,24 @@
 
 	function onKeydown(event: KeyboardEvent) {
 		if (!mounted) return;
+
+		// Cards: Enter continues. Space is the drop key, so it never skips a card.
+		if (tip) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				tip = null;
+			}
+			return;
+		}
+		if (howTo !== null) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				nextHowTo();
+			} else if (event.key === 'Escape') {
+				howTo = null;
+			}
+			return;
+		}
 
 		if (!started) {
 			if (event.key === 'Enter') {
@@ -183,7 +222,6 @@
 			for (const { x, y, base } of active.piece.squares) {
 				drawSquare(context, active.x + x, active.y + y, base);
 			}
-
 			for (const index of opportunities.squares) {
 				const square = active.piece.squares[index];
 				if (square) drawOutline(context, active.x + square.x, active.y + square.y);
@@ -250,7 +288,7 @@
 
 	// Tell the rest of the app whether a game is in progress.
 	$effect(() => {
-		playState.playing = started && !paused && !view.over;
+		playState.playing = started && !paused && !tip && !view.over;
 		return () => {
 			playState.playing = false;
 		};
@@ -266,7 +304,7 @@
 		function loop(now: number) {
 			const elapsed = now - last;
 			last = now;
-			if (started && !paused && !game.state.over) {
+			if (started && !paused && !tip && !game.state.over) {
 				waited += elapsed;
 				if (waited >= fallInterval(game.state.score.level)) {
 					waited = 0;
@@ -299,6 +337,35 @@
 			</span>
 		{/each}
 	</span>
+{/snippet}
+
+{#snippet tipCard(card: Tip, buttonLabel: string, onContinue: () => void)}
+	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-4">
+		<div
+			role="dialog"
+			aria-labelledby="tip-title"
+			class="rounded-lg bg-white p-5 text-slate-900 shadow-xl"
+		>
+			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">Level {card.level}</p>
+			<h2 id="tip-title" class="text-xl font-bold">{card.title}</h2>
+			<p class="mt-2 text-sm">{card.text}</p>
+			{#if card.codons}
+				<p class="mt-3 flex flex-wrap gap-2">
+					{#each card.codons as { codon, kind } (codon)}
+						{@render chips(codon, kind)}
+					{/each}
+				</p>
+			{/if}
+			<button
+				type="button"
+				class="mt-4 rounded bg-slate-900 px-4 py-2 font-semibold text-white"
+				onclick={onContinue}
+			>
+				{buttonLabel}
+			</button>
+			<span class="ml-2 text-xs text-slate-500">or press Enter</span>
+		</div>
+	</div>
 {/snippet}
 
 {#snippet pieceGrid(piece: Piece)}
@@ -360,22 +427,32 @@
 			</canvas>
 
 			{#if !started}
-				<div
-					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
-				>
-					{#if mounted}
-						<button
-							type="button"
-							class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
-							onclick={start}
-						>
-							Start
-						</button>
-						<p class="text-sm">or press Enter</p>
-					{:else}
-						<p>Loading…</p>
-					{/if}
-				</div>
+				{@const card = howTo === null ? undefined : TIPS[howTo]}
+				{#if card && howTo !== null}
+					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo)}
+				{:else}
+					<div
+						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
+					>
+						{#if mounted}
+							<button
+								type="button"
+								class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
+								onclick={start}
+							>
+								Start
+							</button>
+							<p class="text-sm">or press Enter</p>
+							<button type="button" class="text-sm underline" onclick={() => (howTo = 0)}>
+								How to play
+							</button>
+						{:else}
+							<p>Loading…</p>
+						{/if}
+					</div>
+				{/if}
+			{:else if tip}
+				{@render tipCard(tip, 'Continue', () => (tip = null))}
 			{:else if view.over}
 				<div
 					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
@@ -391,7 +468,9 @@
 					</button>
 				</div>
 			{:else if paused}
-				<div class="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
+				<div
+					class="absolute inset-0 flex items-center justify-center text-white {PAUSE_BACKGROUND}"
+				>
 					<p class="text-xl font-bold">Paused: press P</p>
 				</div>
 			{/if}
