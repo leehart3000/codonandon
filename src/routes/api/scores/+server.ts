@@ -3,6 +3,7 @@ import { GENERATOR_VERSION } from '#lib/game/pieces.js';
 import { validateSubmission } from '#lib/server/scores.js';
 import type { RequestHandler } from './$types';
 import { env } from 'cloudflare:workers';
+import { TEST_SECRET, verifyTurnstile } from '#lib/server/turnstile.js';
 
 // Live data: never built ahead of time.
 export const prerender = false;
@@ -38,6 +39,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		body = await request.json();
 	} catch {
 		return json({ error: 'Invalid submission.' }, { status: 400 });
+	}
+
+	// Are you human? Locally, Cloudflare's always-pass test secret is used instead of the real one.
+	const secret = env.TURNSTILE_SECRET_KEY ?? (import.meta.env.DEV ? TEST_SECRET : undefined);
+	const token = (body as { turnstileToken?: unknown } | null)?.turnstileToken;
+	if (!(await verifyTurnstile(token, secret))) {
+		return json({ error: 'Please confirm you are human, then try again.' }, { status: 403 });
 	}
 
 	const result = validateSubmission(body);
