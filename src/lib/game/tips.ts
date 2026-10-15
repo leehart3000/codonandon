@@ -13,7 +13,7 @@ export const TIPS: Tip[] = [
 	{
 		level: 1,
 		title: 'Bases and codons',
-		text: 'Every square is an mRNA base: A, U, G or C. Clear rows to score. Cleared rows are read like a strand of mRNA, where each group of three bases is called a codon. Complete 10 rows to reach level 2.'
+		text: 'Every square is an mRNA base: A, U, G or C. Completed rows score and are read like a strand of mRNA, where each group of three bases is called a codon. Complete 10 rows to reach level 2.'
 	},
 	{
 		level: 2,

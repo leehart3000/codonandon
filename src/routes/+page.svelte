@@ -3,7 +3,10 @@
 	import { APP } from '#lib/config.js';
 </script>
 
-<h1>{APP.name}</h1>
-<p>{APP.description}</p>
+<!-- On small screens the heading is visually hidden (still read by screen readers), to give the board room. -->
+<header class="sr-only sm:not-sr-only">
+	<h1>{APP.name}</h1>
+	<p>{APP.description}</p>
+</header>
 
 <Game />

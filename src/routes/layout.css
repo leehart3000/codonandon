@@ -16,3 +16,9 @@
 		outline-offset: 2px;
 	}
 }
+
+/* Leave room for the iPhone status bar, notch and home indicator. */
+body {
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+		env(safe-area-inset-left);
+}

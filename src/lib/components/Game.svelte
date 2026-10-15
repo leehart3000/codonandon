@@ -14,11 +14,6 @@
 	import { AMINO_ACIDS, type Base } from '#lib/genetics/genetic-code.js';
 	import { playState } from '#lib/play-state.svelte.js';
 
-	/** Size of one square, in pixels. */
-	const CELL = 28;
-	const BOARD_PIXEL_WIDTH = BOARD_WIDTH * CELL;
-	const BOARD_PIXEL_HEIGHT = BOARD_HEIGHT * CELL;
-
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
 		A: '#7ec98f',
@@ -34,6 +29,10 @@
 
 	/** Where the "show tips" choice is remembered in this browser. */
 	const SHOW_TIPS_KEY = 'showTips';
+
+	/** Smallest and largest square size, in pixels. */
+	const MIN_CELL = 14;
+	const MAX_CELL = 32;
 
 	const KEYS: Record<string, Action> = {
 		ArrowLeft: 'left',
@@ -65,8 +64,22 @@
 	let howTo = $state<number | null>(null);
 	let log = $state<string[]>([]);
 	let canvas: HTMLCanvasElement | undefined = $state();
+	/** True on touch devices (phones, tablets): shows the on-screen buttons. */
+	let touch = $state(false);
+	/** Size of one square in pixels, fitted to the screen. */
+	let cell = $state(28);
+
+	const boardPixelWidth = $derived(BOARD_WIDTH * cell);
+	const boardPixelHeight = $derived(BOARD_HEIGHT * cell);
 
 	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
+
+	/** The goal bar's first line while a chain is open, including what a stop would bank now. */
+	const chainHeadline = $derived(
+		view.translation.chain && view.translation.chain.length >= 2
+			? `Chain started · rows ×2 · stop: +${chainBonus(view.translation.chain.length, view.score.level)}`
+			: 'Chain started · rows ×2'
+	);
 
 	/** An AUG is placed on the board, but its row hasn't been cleared yet. */
 	const startReady = $derived(
@@ -131,6 +144,10 @@
 		howTo = howTo + 1 < TIPS.length ? howTo + 1 : null;
 	}
 
+	function togglePause() {
+		if (started && !view.over && !tip) paused = !paused;
+	}
+
 	/** Add lines to the reading log, newest at the top. */
 	function addLog(...lines: string[]) {
 		log = [...lines.reverse(), ...log].slice(0, 14);
@@ -190,7 +207,7 @@
 		}
 
 		if (event.key === 'p') {
-			if (!view.over) paused = !paused;
+			togglePause();
 			return;
 		}
 
@@ -201,9 +218,37 @@
 		act(action);
 	}
 
+	// Touch buttons: holding left, right or down repeats, like holding a key.
+	let repeatTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function press(event: PointerEvent, action: Action) {
+		event.preventDefault();
+		act(action);
+		stopRepeat();
+		if (NO_REPEAT.includes(action)) return;
+		repeatTimer = setTimeout(function again() {
+			act(action);
+			repeatTimer = setTimeout(again, 80);
+		}, 220);
+	}
+
+	function stopRepeat() {
+		clearTimeout(repeatTimer);
+		repeatTimer = undefined;
+	}
+
 	/** Pause automatically when the player switches to another tab or app. */
 	function onVisibilityChange() {
 		if (document.visibilityState === 'hidden' && started && !view.over) paused = true;
+		stopRepeat();
+	}
+
+	/** Fit the board to the screen, leaving room for the bars and touch buttons. */
+	function fitBoard() {
+		const reserved = 64 + 48 + (touch ? 136 : 0) + 24 + (window.innerWidth >= 640 ? 72 : 0);
+		const byHeight = Math.floor((window.innerHeight - reserved) / BOARD_HEIGHT);
+		const byWidth = Math.floor((window.innerWidth - 32) / BOARD_WIDTH);
+		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, byHeight, byWidth));
 	}
 
 	/** Draw the board and the piece in play. */
@@ -212,13 +257,13 @@
 		if (!canvas || !context) return;
 
 		const scale = window.devicePixelRatio || 1;
-		canvas.width = BOARD_PIXEL_WIDTH * scale;
-		canvas.height = BOARD_PIXEL_HEIGHT * scale;
+		canvas.width = boardPixelWidth * scale;
+		canvas.height = boardPixelHeight * scale;
 		context.setTransform(scale, 0, 0, scale, 0, 0);
 
 		// The board turns deep green while a chain is open: noticeable without reading.
 		context.fillStyle = chainOpen ? '#052e1c' : '#0f172a';
-		context.fillRect(0, 0, BOARD_PIXEL_WIDTH, BOARD_PIXEL_HEIGHT);
+		context.fillRect(0, 0, boardPixelWidth, boardPixelHeight);
 
 		if (!started) return;
 
@@ -229,7 +274,7 @@
 		);
 
 		for (const mark of findMarks(view.board, view.translation)) drawMark(context, mark, 1);
-		for (const cell of opportunities.cells) drawOutline(context, cell.column, cell.row);
+		for (const square of opportunities.cells) drawOutline(context, square.column, square.row);
 
 		const active = view.active;
 		if (active) {
@@ -253,15 +298,15 @@
 	}
 
 	function drawLetter(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
-		context.font = `bold ${Math.round(CELL * 0.55)}px system-ui, sans-serif`;
+		context.font = `bold ${Math.round(cell * 0.55)}px system-ui, sans-serif`;
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
-		context.fillText(base, x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+		context.fillText(base, x * cell + cell / 2, y * cell + cell / 2 + 1);
 	}
 
 	function drawSquare(context: CanvasRenderingContext2D, x: number, y: number, base: Base) {
 		context.fillStyle = COLOURS[base];
-		context.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+		context.fillRect(x * cell + 1, y * cell + 1, cell - 2, cell - 2);
 		context.fillStyle = '#0f172a';
 		drawLetter(context, x, y, base);
 	}
@@ -271,7 +316,7 @@
 		context.globalAlpha = 0.2;
 		context.strokeStyle = COLOURS[base];
 		context.lineWidth = 2;
-		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
+		context.strokeRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4);
 		context.fillStyle = COLOURS[base];
 		drawLetter(context, x, y, base);
 		context.restore();
@@ -286,7 +331,7 @@
 		context.shadowColor = colour;
 		context.shadowBlur = 10;
 		context.lineWidth = 3;
-		context.strokeRect(mark.column * CELL + 1.5, mark.row * CELL + 1.5, 3 * CELL - 3, CELL - 3);
+		context.strokeRect(mark.column * cell + 1.5, mark.row * cell + 1.5, 3 * cell - 3, cell - 3);
 		context.restore();
 	}
 
@@ -298,14 +343,15 @@
 		context.shadowColor = colour;
 		context.shadowBlur = 8;
 		context.lineWidth = 2.5;
-		context.strokeRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4);
+		context.strokeRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4);
 		context.restore();
 	}
 
-	// Redraw whenever the game changes.
+	// Redraw whenever the game or the square size changes.
 	$effect(() => {
 		void view;
 		void started;
+		void cell;
 		draw();
 	});
 
@@ -319,6 +365,8 @@
 
 	onMount(() => {
 		mounted = true;
+		touch = window.matchMedia('(pointer: coarse)').matches;
+		fitBoard();
 
 		// Restore the "show tips" choice, if this browser remembers one.
 		try {
@@ -346,11 +394,14 @@
 		}
 
 		frame = requestAnimationFrame(loop);
-		return () => cancelAnimationFrame(frame);
+		return () => {
+			cancelAnimationFrame(frame);
+			stopRepeat();
+		};
 	});
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onresize={fitBoard} />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
 {#snippet chips(codon: string, kind: 'start' | 'stop')}
@@ -380,7 +431,7 @@
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
-			class="rounded-lg bg-white p-5 text-slate-900 shadow-xl"
+			class="max-h-full overflow-y-auto rounded-lg bg-white p-5 text-slate-900 shadow-xl"
 		>
 			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
 				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length} · Level {card.level}
@@ -412,7 +463,9 @@
 					</button>
 				{/if}
 			</div>
-			<p class="mt-2 text-xs text-slate-500">Enter = {buttonLabel}</p>
+			{#if !touch}
+				<p class="mt-2 text-xs text-slate-500">Enter = {buttonLabel}</p>
+			{/if}
 		</div>
 	</div>
 {/snippet}
@@ -424,18 +477,25 @@
 			checked={showTips}
 			onchange={(event) => setShowTips(event.currentTarget.checked)}
 		/>
-		Show tips
+		Show tips in game
 	</label>
 {/snippet}
 
-{#snippet pieceGrid(piece: Piece)}
-	<div class="grid w-fit gap-0.5" style:grid-template-columns="repeat({piece.size}, 1.25rem)">
+{#snippet pieceGrid(piece: Piece, size: number)}
+	<div
+		class="grid w-fit gap-px"
+		style:grid-template-columns="repeat({piece.size}, {size}px)"
+		aria-label="Next piece"
+	>
 		{#each Array.from({ length: piece.size * piece.size }, (_, i) => i) as index (index)}
 			{@const square = piece.squares.find(
 				(s) => s.x === index % piece.size && s.y === Math.floor(index / piece.size)
 			)}
 			<div
-				class="flex h-5 w-5 items-center justify-center text-xs font-bold text-slate-900"
+				class="flex items-center justify-center font-bold text-slate-900"
+				style:width="{size}px"
+				style:height="{size}px"
+				style:font-size="{Math.round(size * 0.6)}px"
 				style:background-color={square ? COLOURS[square.base] : 'transparent'}
 			>
 				{square?.base ?? ''}
@@ -444,19 +504,31 @@
 	</div>
 {/snippet}
 
-<div class="flex flex-wrap items-start gap-6">
+{#snippet touchButton(label: string, symbol: string, action: Action)}
+	<button
+		type="button"
+		aria-label={label}
+		class="flex h-14 touch-manipulation items-center justify-center rounded-lg bg-slate-800 text-2xl font-bold text-white select-none active:bg-slate-600"
+		onpointerdown={(event) => press(event, action)}
+		onpointerup={stopRepeat}
+		onpointerleave={stopRepeat}
+		onpointercancel={stopRepeat}
+		oncontextmenu={(event) => event.preventDefault()}
+	>
+		{symbol}
+	</button>
+{/snippet}
+
+<div class="flex flex-wrap items-start justify-center gap-6 lg:justify-start">
 	<div>
 		<!-- Goal bar: what to aim for right now. Fixed height, so the board never jumps. -->
 		<div
-			class="mb-2 flex h-16 flex-col items-center justify-center gap-1.5 text-center font-bold tracking-wide uppercase"
-			style:width="{BOARD_PIXEL_WIDTH}px"
+			class="mb-1 flex h-16 flex-col items-center justify-center gap-1.5 text-center font-bold tracking-wide uppercase"
+			style:width="{boardPixelWidth}px"
 		>
 			{#if started && !view.over}
 				{#if chainOpen}
-					<p class="text-sm text-green-700">
-						Chain started · rows ×2{#if view.translation.chain && view.translation.chain.length >= 2}
-							· stop: +{chainBonus(view.translation.chain.length, view.score.level)}{/if}
-					</p>
+					<p class="text-sm text-green-700">{chainHeadline}</p>
 					<p class="flex items-center gap-2 text-xs">
 						<span>Stop codons:</span>
 						{@render chips('UAA', 'stop')}
@@ -476,6 +548,30 @@
 			{/if}
 		</div>
 
+		<!-- Score bar: score, level, next piece and pause, on every screen size. -->
+		<div
+			class="mb-2 flex h-10 items-center justify-between gap-2 text-sm"
+			style:width="{boardPixelWidth}px"
+		>
+			<span>Score <strong class="font-mono">{view.score.score}</strong></span>
+			<span>Level <strong class="font-mono">{view.score.level}</strong></span>
+			<span class="flex items-center gap-1">
+				Next
+				{#if started && !paused && !view.over}
+					{@render pieceGrid(view.next, 9)}
+				{/if}
+			</span>
+			<button
+				type="button"
+				class="rounded bg-slate-200 px-2 py-1 font-semibold disabled:opacity-40"
+				onclick={togglePause}
+				disabled={!started || view.over || !!tip}
+				aria-label={paused ? 'Resume' : 'Pause'}
+			>
+				{paused ? '▶' : '⏸'}
+			</button>
+		</div>
+
 		<div
 			class="relative transition-shadow"
 			class:ring-4={chainOpen}
@@ -483,8 +579,8 @@
 		>
 			<canvas
 				bind:this={canvas}
-				style:width="{BOARD_PIXEL_WIDTH}px"
-				style:height="{BOARD_PIXEL_HEIGHT}px"
+				style:width="{boardPixelWidth}px"
+				style:height="{boardPixelHeight}px"
 			>
 				Game board. The score, next piece and chain are listed beside it.
 			</canvas>
@@ -508,7 +604,9 @@
 							>
 								Start
 							</button>
-							<p class="text-sm">or press Enter</p>
+							{#if !touch}
+								<p class="text-sm">or press Enter</p>
+							{/if}
 							{@render tipsToggle()}
 						{:else}
 							<p>Loading…</p>
@@ -538,32 +636,39 @@
 					{@render tipsToggle()}
 				</div>
 			{:else if paused}
-				<div class="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
-					<p class="text-xl font-bold">Paused: press P</p>
+				<div
+					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 text-white"
+				>
+					<p class="text-xl font-bold">Paused</p>
+					<button
+						type="button"
+						class="rounded bg-white px-4 py-2 font-semibold text-slate-900"
+						onclick={togglePause}
+					>
+						Resume
+					</button>
+					{#if !touch}
+						<p class="text-sm">or press P</p>
+					{/if}
 				</div>
 			{/if}
 		</div>
+
+		{#if touch}
+			<!-- Touch controls: turns and drop on top, moves underneath. -->
+			<div class="mt-3 grid grid-cols-3 gap-2" style:width="{boardPixelWidth}px">
+				{@render touchButton('Turn anticlockwise', '⟲', 'rotate-anticlockwise')}
+				{@render touchButton('Drop', 'DROP', 'drop')}
+				{@render touchButton('Turn clockwise', '⟳', 'rotate-clockwise')}
+				{@render touchButton('Move left', '←', 'left')}
+				{@render touchButton('Move down', '↓', 'down')}
+				{@render touchButton('Move right', '→', 'right')}
+			</div>
+		{/if}
 	</div>
 
-	<aside class="flex w-64 flex-col gap-4">
-		<dl class="grid grid-cols-2 gap-x-4 gap-y-1">
-			<dt>Score</dt>
-			<dd class="text-right font-mono">{view.score.score}</dd>
-			<dt>Level</dt>
-			<dd class="text-right font-mono">{view.score.level}</dd>
-			<dt>Rows</dt>
-			<dd class="text-right font-mono">{view.score.rows}</dd>
-			<dt>Chains</dt>
-			<dd class="text-right font-mono">{view.stats.chains}</dd>
-		</dl>
-
-		{#if started && !paused}
-			<section>
-				<h2 class="font-semibold">Next</h2>
-				{@render pieceGrid(view.next)}
-			</section>
-		{/if}
-
+	<!-- Details for wide screens only; phones have no room for them. -->
+	<aside class="hidden w-64 flex-col gap-4 lg:flex">
 		<section>
 			<h2 class="font-semibold">Chain</h2>
 			{#if view.translation.chain}
@@ -578,6 +683,7 @@
 			{:else}
 				<p class="text-sm">No chain yet</p>
 			{/if}
+			<p class="mt-1 text-sm">Rows {view.score.rows} · Chains {view.stats.chains}</p>
 		</section>
 
 		<section>
