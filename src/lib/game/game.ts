@@ -173,13 +173,14 @@ export function createGame(options: GameOptions) {
 		return { locked: true, clear, gameOver: null };
 	}
 
-	/** Assist: empty the board, keeping score, level and chain. The current piece restarts at the top. */
+	/** Assist: a fresh start with an empty board. Score and level are kept; any open chain ends. */
 	function clearBoard() {
 		if (state.over || !state.active) return;
 		state = {
 			...state,
 			board: createBoard(),
 			active: spawn(state.active.piece),
+			translation: initialTranslationState,
 			clearedBoards: state.clearedBoards + 1
 		};
 	}

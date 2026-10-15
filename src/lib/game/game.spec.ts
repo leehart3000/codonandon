@@ -123,6 +123,21 @@ describe('game', () => {
 		expect(game.state.clearedBoards).toBe(1);
 	});
 
+	it('ends any open chain when the board is cleared, with no bonus', () => {
+		// The I piece completes AUG GCU UGG GCA, which starts a chain.
+		const game = createGame({
+			seed: 1,
+			board: boardFrom(['AUGG....GGCA']),
+			nextPiece: () => iPiece('CUUG')
+		});
+		game.act('drop');
+		expect(game.state.translation.chain).not.toBeNull();
+		const score = game.state.score.score;
+		game.clearBoard();
+		expect(game.state.translation.chain).toBeNull();
+		expect(game.state.score.score).toBe(score);
+	});
+
 	it('ends the game when a new piece no longer fits, then ignores moves', () => {
 		const game = createGame({ seed: 3 });
 		for (let i = 0; i < 500 && !game.state.over; i++) game.act('drop');

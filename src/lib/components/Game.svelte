@@ -383,7 +383,7 @@
 			class="rounded-lg bg-white p-5 text-slate-900 shadow-xl"
 		>
 			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
-				Tip {TIPS.indexOf(card) + 1} of {TIPS.length} · Level {card.level}
+				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length} · Level {card.level}
 			</p>
 			<h2 id="tip-title" class="text-xl font-bold">{card.title}</h2>
 			<p class="mt-2 text-sm">{card.text}</p>
@@ -417,6 +417,17 @@
 	</div>
 {/snippet}
 
+{#snippet tipsToggle()}
+	<label class="flex items-center gap-2 text-sm">
+		<input
+			type="checkbox"
+			checked={showTips}
+			onchange={(event) => setShowTips(event.currentTarget.checked)}
+		/>
+		Show tips
+	</label>
+{/snippet}
+
 {#snippet pieceGrid(piece: Piece)}
 	<div class="grid w-fit gap-0.5" style:grid-template-columns="repeat({piece.size}, 1.25rem)">
 		{#each Array.from({ length: piece.size * piece.size }, (_, i) => i) as index (index)}
@@ -442,7 +453,10 @@
 		>
 			{#if started && !view.over}
 				{#if chainOpen}
-					<p class="text-green-700">Chain started · double points!</p>
+					<p class="text-sm text-green-700">
+						Chain started · rows ×2{#if view.translation.chain && view.translation.chain.length >= 2}
+							· stop: +{chainBonus(view.translation.chain.length, view.score.level)}{/if}
+					</p>
 					<p class="flex items-center gap-2 text-xs">
 						<span>Stop codons:</span>
 						{@render chips('UAA', 'stop')}
@@ -484,6 +498,9 @@
 						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-white"
 					>
 						{#if mounted}
+							<button type="button" class="text-sm underline" onclick={() => (howTo = 0)}>
+								How to play
+							</button>
 							<button
 								type="button"
 								class="rounded bg-white px-6 py-3 text-xl font-semibold text-slate-900"
@@ -492,17 +509,7 @@
 								Start
 							</button>
 							<p class="text-sm">or press Enter</p>
-							<label class="flex items-center gap-2 text-sm">
-								<input
-									type="checkbox"
-									checked={showTips}
-									onchange={(event) => setShowTips(event.currentTarget.checked)}
-								/>
-								Show tips during the game ({TIPS.length})
-							</label>
-							<button type="button" class="text-sm underline" onclick={() => (howTo = 0)}>
-								How to play
-							</button>
+							{@render tipsToggle()}
 						{:else}
 							<p>Loading…</p>
 						{/if}
@@ -528,6 +535,7 @@
 					>
 						Play again
 					</button>
+					{@render tipsToggle()}
 				</div>
 			{:else if paused}
 				<div class="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
