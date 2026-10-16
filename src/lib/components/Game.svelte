@@ -17,6 +17,8 @@
 	import { redundancyHighlight, summariseAminoAcids } from '#lib/game/summary.js';
 	import { describeLength } from '#lib/genetics/peptides.js';
 	import { getTurnstileToken } from '#lib/turnstile-client.js';
+	import { version } from '$app/env';
+	import HighScores from '#lib/components/HighScores.svelte';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -96,6 +98,8 @@
 	let saving = $state(false);
 	let saveError = $state('');
 	let savedRank = $state<number | null>(null);
+	/** Whether the high-score table is showing. */
+	let showScores = $state(false);
 	let turnstileBox: HTMLDivElement | undefined = $state();
 	/** When the current game started, and how long it lasted (for the server's speed check). */
 	let startedAt = 0;
@@ -157,6 +161,7 @@
 		saving = false;
 		saveError = '';
 		savedRank = null;
+		showScores = false;
 		startedAt = performance.now();
 		howTo = null;
 		started = true;
@@ -260,6 +265,15 @@
 
 		// Typing in a box (such as initials) goes to the box, not the game.
 		if (event.target instanceof HTMLInputElement) return;
+
+		// The high-score table: Escape or Enter goes back.
+		if (showScores) {
+			if (event.key === 'Escape' || event.key === 'Enter') {
+				event.preventDefault();
+				showScores = false;
+			}
+			return;
+		}
 
 		// Cards: Enter continues. Space is the drop key, so it never skips a card.
 		if (tip) {
@@ -802,6 +816,13 @@
 								</button>
 								{@render tipsSwitch()}
 							</div>
+							<button
+								type="button"
+								class="min-h-11 text-sm underline"
+								onclick={() => (showScores = true)}
+							>
+								High scores
+							</button>
 							<p class="text-xs opacity-80">
 								{#if touch}
 									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop
@@ -810,16 +831,12 @@
 									to pause · Enter to start
 								{/if}
 							</p>
-							<a
-								class="text-xs opacity-80"
-								href={APP.sourceUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								Source code (AGPL-3.0) <span aria-hidden="true">↗</span><span class="sr-only">
-									(opens in a new tab)</span
-								>
-							</a>
+							<p class="text-xs opacity-80">
+								<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
+									Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
+								</a>
+								· Version {version}
+							</p>
 						{:else}
 							<p>Loading…</p>
 						{/if}
@@ -908,6 +925,13 @@
 									<p class="font-bold text-green-300">
 										Saved! You're #{savedRank} on the high-score table.
 									</p>
+									<button
+										type="button"
+										class="min-h-11 text-sm underline"
+										onclick={() => (showScores = true)}
+									>
+										See high scores
+									</button>
 								{:else}
 									<label
 										for="initials"
@@ -965,6 +989,13 @@
 						Resume
 					</button>
 				</div>
+			{/if}
+
+			{#if showScores}
+				<HighScores
+					highlightRank={view.over ? savedRank : null}
+					onClose={() => (showScores = false)}
+				/>
 			{/if}
 		</div>
 	</div>

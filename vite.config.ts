@@ -3,6 +3,17 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { execSync } from 'node:child_process';
+
+/** Name each build after its git commit (GitHub provides it in CI), so you can tell versions apart. */
+function buildVersion(): string {
+	if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+	try {
+		return execSync('git rev-parse --short=7 HEAD').toString().trim();
+	} catch {
+		return Date.now().toString();
+	}
+}
 
 export default defineConfig({
 	plugins: [
@@ -17,7 +28,8 @@ export default defineConfig({
 				// During tests, keep simulator storage in memory so test groups don't
 				// lock the same database file. Normal dev still saves to .wrangler/state.
 				platformProxy: { persist: !process.env.VITEST }
-			})
+			}),
+			version: { name: buildVersion() }
 		})
 	],
 	test: {
