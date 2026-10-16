@@ -16,9 +16,8 @@
 	import { playState } from '#lib/play-state.svelte.js';
 	import { redundancyHighlight, summariseAminoAcids } from '#lib/game/summary.js';
 	import { describeLength } from '#lib/genetics/peptides.js';
-	import { getTurnstileToken } from '#lib/turnstile-client.js';
 	import { version } from '$app/env';
-	import HighScores from '#lib/components/HighScores.svelte';
+	import HighScores, { type NewScore } from '#lib/components/HighScores.svelte';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -35,14 +34,6 @@
 
 	/** Where the "show tips" choice is remembered in this browser. */
 	const SHOW_TIPS_KEY = 'showTips';
-
-	/** Where the player's initials are remembered in this browser. */
-	const INITIALS_KEY = 'initials';
-
-	/** Turnstile site key: Cloudflare's always-pass invisible test key on the dev server. */
-	const TURNSTILE_SITE_KEY = import.meta.env.DEV
-		? '1x00000000000000000000BB'
-		: APP.turnstileSiteKey;
 
 	/** Smallest and largest square size, in pixels. */
 	const MIN_CELL = 14;
@@ -94,9 +85,6 @@
 	/** Points added at game over for an unfinished chain, shown on the stats screen. */
 	let finalBonus = $state(0);
 	/** Saving a score at game over. */
-	let initials = $state('');
-	let saving = $state(false);
-	let saveError = $state('');
 	let savedRank = $state<number | null>(null);
 	/** The database ID of the just-saved score, for highlighting it in the table. */
 	let savedId = $state<number | null>(null);
@@ -112,7 +100,6 @@
 	let screen = $state<'home' | 'instructions' | 'settings'>('home');
 	/** Asking "Quit this game?" on the pause screen. */
 	let confirmQuit = $state(false);
-	let turnstileBox: HTMLDivElement | undefined = $state();
 	/** When the current game started, and how long it lasted (for the server's speed check). */
 	let startedAt = 0;
 	let durationMs = 0;
@@ -152,6 +139,21 @@
 	/** The game-over summary: amino acids made, and one fact about codon redundancy. */
 	const aminoSummary = $derived(view.over ? summariseAminoAcids(view.stats) : []);
 	const redundancyFact = $derived(redundancyHighlight(aminoSummary));
+	/** A finished game not yet saved: handed to the high-score table, where the player adds initials. */
+	const newScore = $derived<NewScore | null>(
+		view.over && view.score.score > 0 && savedId === null
+			? {
+					score: view.score.score,
+					level: view.score.level,
+					rows: view.score.rows,
+					chains: view.stats.chains,
+					longestChain: view.stats.longestChain,
+					durationMs: gameTime,
+					generatorVersion: view.generatorVersion,
+					tips: tipsThisGame
+				}
+			: null
+	);
 	/** All 20 amino acids, for the "collected" display on the game-over screen. */
 	const ALL_AMINO_ACIDS = Object.keys(AMINO_ACIDS) as AminoAcid[];
 	const collected = $derived(
@@ -174,8 +176,6 @@
 		view = game.state;
 		paused = false;
 		finalBonus = 0;
-		saving = false;
-		saveError = '';
 		savedRank = null;
 		savedId = null;
 		piecesPlaced = 0;
@@ -202,6 +202,8 @@
 			finalBonus = result.gameOver.unfinishedPoints;
 			durationMs = Math.round(performance.now() - startedAt);
 			gameTime = durationMs;
+			// Arcade-style: straight to the high-score table, where a top-100 score gets its row.
+			if (game.state.score.score > 0) showScores = true;
 		}
 		if (tipsThisGame && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
@@ -218,61 +220,6 @@
 			localStorage.setItem(SHOW_TIPS_KEY, String(value));
 		} catch {
 			// Storage can be unavailable (e.g. private browsing); the choice just isn't remembered.
-		}
-	}
-
-	/** Send the score to the high-score table, after the invisible "are you human?" check. */
-	async function saveScore(event: SubmitEvent) {
-		event.preventDefault();
-		const clean = initials.trim().toUpperCase();
-		if (!/^[A-Z. ]{1,3}$/.test(clean) || !/[A-Z]/.test(clean)) {
-			saveError = 'Please enter 1 to 3 letters (spaces and full stops are fine too).';
-			return;
-		}
-		if (!turnstileBox || saving) return;
-
-		saving = true;
-		saveError = '';
-		try {
-			const turnstileToken = await getTurnstileToken(TURNSTILE_SITE_KEY, turnstileBox);
-			const response = await fetch('/api/scores', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					initials: clean,
-					score: view.score.score,
-					level: view.score.level,
-					rows: view.score.rows,
-					chains: view.stats.chains,
-					longestChain: view.stats.longestChain,
-					durationMs,
-					generatorVersion: view.generatorVersion,
-					tips: tipsThisGame,
-					offline: false,
-					turnstileToken
-				})
-			});
-			const result = (await response.json()) as { id?: number; rank?: number; error?: string };
-			if (response.ok && result.rank) {
-				savedRank = result.rank;
-				savedId = result.id ?? null;
-				showScores = true;
-				try {
-					localStorage.setItem(INITIALS_KEY, clean);
-				} catch {
-					// Not remembered; that's fine.
-				}
-			} else {
-				saveError = result.error ?? 'Sorry, the score could not be saved.';
-			}
-		} catch (error) {
-			saveError = !navigator.onLine
-				? "You're offline, so the score can't be saved right now."
-				: error instanceof Error
-					? error.message
-					: 'Sorry, the score could not be saved.';
-		} finally {
-			saving = false;
 		}
 	}
 
@@ -307,9 +254,9 @@
 		// Typing in a box (such as initials) goes to the box, not the game.
 		if (event.target instanceof HTMLInputElement) return;
 
-		// The high-score table: Escape or Enter goes back.
+		// The high-score table: Escape goes back.
 		if (showScores) {
-			if (event.key === 'Escape' || event.key === 'Enter') {
+			if (event.key === 'Escape') {
 				event.preventDefault();
 				showScores = false;
 			}
@@ -605,12 +552,6 @@
 			showTips = localStorage.getItem(SHOW_TIPS_KEY) === 'true';
 		} catch {
 			// Storage unavailable: keep the default (tips off).
-		}
-		// Restore the player's initials, if this browser remembers them.
-		try {
-			initials = localStorage.getItem(INITIALS_KEY) ?? '';
-		} catch {
-			// Storage unavailable: start with empty initials.
 		}
 		fitBoard();
 
@@ -927,7 +868,10 @@
 										aria-keyshortcuts="Enter"
 										onclick={start}
 									>
-										Start game{#if !touch}<span aria-hidden="true" class="ml-2">↵</span>{/if}
+										Start game{#if !touch}<span
+												aria-hidden="true"
+												class="absolute top-1/2 right-4 -translate-y-1/2">↵</span
+											>{/if}
 									</button>
 									{@render menuButton('Instructions', () => (screen = 'instructions'))}
 									{@render menuButton('High scores', () => (showScores = true))}
@@ -1044,40 +988,6 @@
 								</div>
 							</dl>
 
-							{#if view.score.score > 0 && savedRank === null}
-								<form class="flex w-full flex-col items-center gap-2" onsubmit={saveScore}>
-									<label
-										for="initials"
-										class="text-xs font-bold tracking-wide uppercase opacity-70"
-									>
-										Your initials
-									</label>
-									<div class="flex items-center gap-2">
-										<input
-											id="initials"
-											bind:value={initials}
-											maxlength="3"
-											autocomplete="off"
-											autocapitalize="characters"
-											spellcheck="false"
-											class="w-24 rounded bg-slate-950 px-2 py-2 text-center font-mono text-xl font-bold tracking-[0.3em] text-gold uppercase ring-2 ring-gold"
-										/>
-										<button
-											type="submit"
-											class="min-h-11 rounded bg-adenine px-4 font-semibold tracking-wide text-slate-900 uppercase disabled:opacity-50"
-											disabled={saving}
-										>
-											{saving ? 'Saving…' : 'Save'}
-										</button>
-									</div>
-									{#if saveError}
-										<p class="text-xs text-uracil" role="alert">{saveError}</p>
-									{/if}
-									<!-- Turnstile's invisible check runs here; nothing is shown. -->
-									<div bind:this={turnstileBox}></div>
-								</form>
-							{/if}
-
 							<div class="flex w-full max-w-56 flex-col gap-2">
 								<button
 									type="button"
@@ -1086,6 +996,9 @@
 								>
 									Play again
 								</button>
+								{#if newScore}
+									{@render menuButton('Save score', () => (showScores = true))}
+								{/if}
 								{@render menuButton('Stats', () => (showStats = true))}
 								{@render menuButton('High scores', () => (showScores = true))}
 								{@render menuButton('Main menu', goHome)}
@@ -1128,9 +1041,14 @@
 
 			{#if showScores}
 				<HighScores
+					newScore={view.over ? newScore : null}
 					highlightId={view.over ? savedId : null}
 					startLimit={view.over && (savedRank ?? 0) > 10 ? 100 : 10}
 					closeLabel={started ? 'Back' : 'Main menu'}
+					onSaved={(id, rank) => {
+						savedId = id;
+						savedRank = rank;
+					}}
 					onClose={() => (showScores = false)}
 				/>
 			{/if}
