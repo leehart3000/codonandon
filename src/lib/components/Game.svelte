@@ -100,6 +100,8 @@
 	let savedRank = $state<number | null>(null);
 	/** Whether the high-score table is showing. */
 	let showScores = $state(false);
+	/** Whether the game-over Stats page is showing. */
+	let showStats = $state(false);
 	/** Which home screen page is showing when no game is running. */
 	let screen = $state<'home' | 'instructions' | 'settings'>('home');
 	/** Asking "Quit this game?" on the pause screen. */
@@ -166,6 +168,7 @@
 		saveError = '';
 		savedRank = null;
 		showScores = false;
+		showStats = false;
 		startedAt = performance.now();
 		howTo = null;
 		started = true;
@@ -235,6 +238,7 @@
 			const result = (await response.json()) as { rank?: number; error?: string };
 			if (response.ok && result.rank) {
 				savedRank = result.rank;
+				showScores = true;
 				try {
 					localStorage.setItem(INITIALS_KEY, clean);
 				} catch {
@@ -275,6 +279,7 @@
 		howTo = null;
 		confirmQuit = false;
 		showScores = false;
+		showStats = false;
 		screen = 'home';
 	}
 
@@ -645,17 +650,24 @@
 	</span>
 {/snippet}
 
-{#snippet tipCard(card: Tip, buttonLabel: string, onContinue: () => void)}
-	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-3">
+{#snippet tipCard(
+	card: Tip,
+	buttonLabel: string,
+	onContinue: () => void,
+	onBack: (() => void) | null
+)}
+	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900 p-3">
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
-			class="max-h-full overflow-y-auto rounded-lg bg-white p-4 text-slate-900 shadow-xl"
+			class="max-h-full overflow-y-auto rounded-lg border-2 border-gold bg-slate-950 p-4 text-adenine"
 		>
-			<p class="text-xs font-bold tracking-wide text-slate-500 uppercase">
+			<p class="text-xs font-bold tracking-wide uppercase opacity-70">
 				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length}
 			</p>
-			<h2 id="tip-title" class="text-lg font-bold">{card.title}</h2>
+			<h2 id="tip-title" class="text-lg font-black tracking-wide text-gold uppercase">
+				{card.title}
+			</h2>
 			<p class="mt-1 text-sm">{card.text}</p>
 			{#if card.codons}
 				<p class="mt-2 flex flex-wrap gap-2">
@@ -664,15 +676,20 @@
 					{/each}
 				</p>
 			{/if}
-			<button
-				type="button"
-				class="mt-3 min-h-11 rounded bg-slate-900 px-4 font-semibold text-white"
-				onclick={onContinue}
-			>
-				{buttonLabel}
-			</button>
+			<div class="mt-3 flex flex-col gap-2">
+				<button
+					type="button"
+					class="min-h-11 rounded bg-gold px-4 font-semibold tracking-wide text-slate-900 uppercase"
+					onclick={onContinue}
+				>
+					{buttonLabel}
+				</button>
+				{#if onBack}
+					{@render menuButton('Back', onBack)}
+				{/if}
+			</div>
 			{#if !touch}
-				<span class="ml-2 text-xs text-slate-500">or press Enter</span>
+				<p class="mt-2 text-xs opacity-70">or press Enter</p>
 			{/if}
 		</div>
 	</div>
@@ -698,7 +715,7 @@
 	>
 		<span
 			class="relative h-7 w-12 shrink-0 rounded-full transition-colors {showTips
-				? 'bg-green-500'
+				? 'bg-adenine'
 				: 'bg-slate-500'}"
 		>
 			<span
@@ -733,7 +750,7 @@
 <!-- The whole play area takes gestures, so a swipe beside the board still controls the piece. -->
 <div
 	bind:this={playArea}
-	class="flex min-h-dvh flex-wrap items-start justify-center gap-6 pt-1 select-none"
+	class="flex min-h-dvh flex-wrap items-start justify-center gap-6 pt-1 text-adenine select-none"
 	style:touch-action={playing ? 'none' : 'auto'}
 	style:-webkit-touch-callout="none"
 	onpointerdown={onPointerDown}
@@ -745,7 +762,7 @@
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
-			<span class="text-lg font-black tracking-tight">{APP.name}</span>
+			<span class="text-lg font-black tracking-tight text-gold">{APP.name}</span>
 			<span class="flex h-8 flex-1 items-center justify-center">
 				{#if started && !paused && !view.over}
 					{@render pieceGrid(view.next, 7)}
@@ -824,14 +841,19 @@
 			{#if !started}
 				{@const card = howTo === null ? undefined : TIPS[howTo]}
 				{#if card && howTo !== null}
-					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo)}
+					{@render tipCard(
+						card,
+						howTo + 1 < TIPS.length ? 'Next' : 'Done',
+						nextHowTo,
+						() => (howTo = null)
+					)}
 				{:else}
-					<div class="absolute inset-0 overflow-y-auto bg-slate-900/90 text-white">
+					<div class="absolute inset-0 overflow-y-auto bg-slate-900/90">
 						<div class="flex min-h-full flex-col items-center justify-center gap-3 p-4 text-center">
 							{#if !mounted}
 								<p>Loading…</p>
 							{:else if screen === 'instructions'}
-								<h2 class="text-lg font-black tracking-wide uppercase">Instructions</h2>
+								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Instructions</h2>
 								<p class="text-sm">
 									Clear rows to score. Form start and stop codons to build chains of amino acids,
 									for bonus points.
@@ -867,13 +889,13 @@
 								</dl>
 								<div class="flex w-full max-w-56 flex-col gap-2">
 									{@render menuButton('Game tips', () => (howTo = 0))}
-									{@render menuButton('Back', () => (screen = 'home'))}
+									{@render menuButton('Main menu', () => (screen = 'home'))}
 								</div>
 							{:else if screen === 'settings'}
-								<h2 class="text-lg font-black tracking-wide uppercase">Settings</h2>
+								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Settings</h2>
 								{@render tipsSwitch()}
 								<div class="flex w-full max-w-56 flex-col gap-2">
-									{@render menuButton('Back', () => (screen = 'home'))}
+									{@render menuButton('Main menu', () => (screen = 'home'))}
 								</div>
 							{:else}
 								<p class="text-3xl font-black tracking-tight text-gold">{APP.name}</p>
@@ -906,96 +928,93 @@
 					</div>
 				{/if}
 			{:else if tip}
-				{@render tipCard(tip, 'Continue', () => (tip = null))}
+				{@render tipCard(tip, 'Continue', () => (tip = null), null)}
 			{:else if view.over}
-				<div class="absolute inset-0 overflow-y-auto bg-slate-900/95 text-white">
+				<div class="absolute inset-0 overflow-y-auto bg-slate-900">
 					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
-						<p class="text-xs font-bold tracking-widest uppercase opacity-70">Game over</p>
-						<p class="font-mono text-2xl font-black">{formatNumber(view.score.score)}</p>
-						{#if finalBonus > 0}
-							<p class="text-xs opacity-80">
-								Includes +{formatNumber(finalBonus)} for an unfinished chain
-							</p>
-						{/if}
+						{#if showStats}
+							<h2 class="text-lg font-black tracking-wide text-gold uppercase">Stats</h2>
 
-						<dl class="grid w-full grid-cols-4 gap-1 text-xs">
-							<div>
-								<dt class="opacity-70">Level</dt>
-								<dd class="font-mono text-base font-bold">{view.score.level}</dd>
-							</div>
-							<div>
-								<dt class="opacity-70">Rows</dt>
-								<dd class="font-mono text-base font-bold">{view.score.rows}</dd>
-							</div>
-							<div>
-								<dt class="opacity-70">Chains</dt>
-								<dd class="font-mono text-base font-bold">{view.stats.chains}</dd>
-							</div>
-							<div>
-								<dt class="opacity-70">Longest</dt>
-								<dd class="font-mono text-base font-bold">{view.stats.longestChain}</dd>
-							</div>
-						</dl>
-
-						{#if view.stats.longestChain >= 2}
-							<section class="w-full">
-								<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">
-									Your longest chain
-								</h2>
-								<p class="mt-1 font-mono text-xs break-words">{longestShown.join('–')}</p>
-								<p class="mt-1 text-xs">
-									{view.stats.longestChain} amino acids: {describeLength(view.stats.longestChain)}.
-								</p>
-							</section>
-						{:else if redundancyFact}
-							<p class="text-xs">
-								{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
-									.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
-								have more than one codon.
-							</p>
-						{:else if collected.length === 0}
-							<p class="text-xs">
-								No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
-								chain.
-							</p>
-						{/if}
-
-						<section class="w-full">
-							<h2 class="text-xs font-bold tracking-wide uppercase opacity-70">
-								Amino acids collected: {collected.length} of {ALL_AMINO_ACIDS.length}
-							</h2>
-							<ul class="mt-1 grid grid-cols-5 gap-1">
-								{#each ALL_AMINO_ACIDS as aminoAcid (aminoAcid)}
-									{@const made = collected.includes(aminoAcid)}
-									<li
-										class="rounded px-1 py-0.5 font-mono text-xs"
-										class:bg-white={made}
-										class:text-slate-900={made}
-										class:opacity-30={!made}
-									>
-										<span aria-hidden="true">{AMINO_ACIDS[aminoAcid].short}</span>
-										<span class="sr-only">
-											{AMINO_ACIDS[aminoAcid].name}: {made ? 'collected' : 'not collected'}
-										</span>
-									</li>
-								{/each}
-							</ul>
-						</section>
-
-						{#if view.score.score > 0}
-							<form class="flex w-full flex-col items-center gap-2" onsubmit={saveScore}>
-								{#if savedRank !== null}
-									<p class="font-bold text-green-300">
-										Saved! You're #{savedRank} on the high-score table.
+							{#if view.stats.longestChain >= 2}
+								<section class="w-full">
+									<h3 class="text-xs font-bold tracking-wide uppercase opacity-70">
+										Your longest chain
+									</h3>
+									<p class="mt-1 font-mono text-xs break-words">{longestShown.join('–')}</p>
+									<p class="mt-1 text-xs">
+										{view.stats.longestChain} amino acids: {describeLength(
+											view.stats.longestChain
+										)}.
 									</p>
-									<button
-										type="button"
-										class="min-h-11 text-sm underline"
-										onclick={() => (showScores = true)}
-									>
-										See high scores
-									</button>
-								{:else}
+								</section>
+							{:else if redundancyFact}
+								<p class="text-xs">
+									{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
+										.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
+									have more than one codon.
+								</p>
+							{:else if collected.length === 0}
+								<p class="text-xs">
+									No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
+									chain.
+								</p>
+							{/if}
+
+							<section class="w-full">
+								<h3 class="text-xs font-bold tracking-wide uppercase opacity-70">
+									Amino acids collected: {collected.length} of {ALL_AMINO_ACIDS.length}
+								</h3>
+								<ul class="mt-1 grid grid-cols-5 gap-1">
+									{#each ALL_AMINO_ACIDS as aminoAcid (aminoAcid)}
+										{@const made = collected.includes(aminoAcid)}
+										<li
+											class="rounded px-1 py-0.5 font-mono text-xs"
+											class:bg-adenine={made}
+											class:text-slate-900={made}
+											class:opacity-30={!made}
+										>
+											<span aria-hidden="true">{AMINO_ACIDS[aminoAcid].short}</span>
+											<span class="sr-only">
+												{AMINO_ACIDS[aminoAcid].name}: {made ? 'collected' : 'not collected'}
+											</span>
+										</li>
+									{/each}
+								</ul>
+							</section>
+
+							<div class="flex w-full max-w-56 flex-col gap-2">
+								{@render menuButton('Back', () => (showStats = false))}
+							</div>
+						{:else}
+							<p class="text-sm font-black tracking-widest text-gold uppercase">Game over</p>
+							<p class="font-mono text-2xl font-black text-gold">{view.score.score}</p>
+							{#if finalBonus > 0}
+								<p class="text-xs opacity-80">
+									Includes +{formatNumber(finalBonus)} for an unfinished chain
+								</p>
+							{/if}
+
+							<dl class="grid w-full grid-cols-4 gap-1 text-xs">
+								<div>
+									<dt class="opacity-70">Level</dt>
+									<dd class="font-mono text-base font-bold">{view.score.level}</dd>
+								</div>
+								<div>
+									<dt class="opacity-70">Rows</dt>
+									<dd class="font-mono text-base font-bold">{view.score.rows}</dd>
+								</div>
+								<div>
+									<dt class="opacity-70">Chains</dt>
+									<dd class="font-mono text-base font-bold">{view.stats.chains}</dd>
+								</div>
+								<div>
+									<dt class="opacity-70">Longest</dt>
+									<dd class="font-mono text-base font-bold">{view.stats.longestChain}</dd>
+								</div>
+							</dl>
+
+							{#if view.score.score > 0 && savedRank === null}
+								<form class="flex w-full flex-col items-center gap-2" onsubmit={saveScore}>
 									<label
 										for="initials"
 										class="text-xs font-bold tracking-wide uppercase opacity-70"
@@ -1010,43 +1029,45 @@
 											autocomplete="off"
 											autocapitalize="characters"
 											spellcheck="false"
-											class="w-24 rounded bg-white px-2 py-2 text-center font-mono text-xl font-bold tracking-[0.3em] text-slate-900 uppercase"
+											class="w-24 rounded bg-slate-950 px-2 py-2 text-center font-mono text-xl font-bold tracking-[0.3em] text-gold uppercase ring-2 ring-gold"
 										/>
 										<button
 											type="submit"
-											class="min-h-11 rounded bg-green-500 px-4 font-semibold text-slate-900 disabled:opacity-50"
+											class="min-h-11 rounded bg-adenine px-4 font-semibold tracking-wide text-slate-900 uppercase disabled:opacity-50"
 											disabled={saving}
 										>
-											{saving ? 'Saving…' : 'Save score'}
+											{saving ? 'Saving…' : 'Save'}
 										</button>
 									</div>
 									{#if saveError}
-										<p class="text-xs text-orange-300" role="alert">{saveError}</p>
+										<p class="text-xs text-uracil" role="alert">{saveError}</p>
 									{/if}
-								{/if}
-								<!-- Turnstile's invisible check runs here; nothing is shown. -->
-								<div bind:this={turnstileBox}></div>
-							</form>
-						{/if}
+									<!-- Turnstile's invisible check runs here; nothing is shown. -->
+									<div bind:this={turnstileBox}></div>
+								</form>
+							{/if}
 
-						<div class="flex w-full max-w-56 flex-col gap-2">
-							<button
-								type="button"
-								class="min-h-11 w-full rounded bg-gold px-4 font-semibold tracking-wide text-slate-900 uppercase"
-								onclick={start}
-							>
-								Play again
-							</button>
-							{@render menuButton('Home', goHome)}
-						</div>
+							<div class="flex w-full max-w-56 flex-col gap-2">
+								<button
+									type="button"
+									class="min-h-11 w-full rounded bg-gold px-4 font-semibold tracking-wide text-slate-900 uppercase"
+									onclick={start}
+								>
+									Play again
+								</button>
+								{@render menuButton('Stats', () => (showStats = true))}
+								{@render menuButton('High scores', () => (showScores = true))}
+								{@render menuButton('Main menu', goHome)}
+							</div>
+						{/if}
 					</div>
 				</div>
 			{:else if paused}
 				<div
-					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-4 text-center text-white"
+					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-4 text-center"
 				>
 					{#if confirmQuit}
-						<p class="text-lg font-bold">Quit this game?</p>
+						<p class="text-lg font-bold text-gold">Quit this game?</p>
 						<p class="text-sm">Your score won't be saved.</p>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
@@ -1059,7 +1080,7 @@
 							{@render menuButton('Quit', goHome)}
 						</div>
 					{:else}
-						<p class="text-xl font-bold">Paused</p>
+						<p class="text-xl font-bold text-gold">Paused</p>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
@@ -1077,6 +1098,7 @@
 			{#if showScores}
 				<HighScores
 					highlightRank={view.over ? savedRank : null}
+					closeLabel={started ? 'Back' : 'Main menu'}
 					onClose={() => (showScores = false)}
 				/>
 			{/if}

@@ -1,7 +1,11 @@
 @import 'tailwindcss';
 
-/* The game's accent colour: the gold of the G base and the icon. Use as text-gold, bg-gold, border-gold. */
+/* The base colours, named after the bases. Gold (guanine) is the accent for titles and buttons. */
 @theme {
+	--color-adenine: #7ec98f;
+	--color-uracil: #d97878;
+	--color-guanine: #e3be71;
+	--color-cytosine: #7aa8d6;
 	--color-gold: #e3be71;
 }
 

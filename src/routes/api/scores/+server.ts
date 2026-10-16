@@ -8,13 +8,15 @@ import { TEST_SECRET, verifyTurnstile } from '#lib/server/turnstile.js';
 // Live data: never built ahead of time.
 export const prerender = false;
 
-/** How many scores the table shows. */
-const TOP = 10;
+/** How many scores the table can show: the top 10, or the top 100. */
+const LIMITS = [10, 100];
 
 /** The top scores for the current version of the piece rules. */
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ url }) => {
 	const db = env.DB;
 	if (!db) return json({ error: 'Scores are unavailable.' }, { status: 503 });
+	const requested = Number(url.searchParams.get('limit'));
+	const limit = LIMITS.includes(requested) ? requested : 10;
 
 	const { results } = await db
 		.prepare(
@@ -23,7 +25,7 @@ export const GET: RequestHandler = async () => {
 			FROM scores WHERE generator_version = ?
 			ORDER BY score DESC, created_at ASC LIMIT ?`
 		)
-		.bind(GENERATOR_VERSION, TOP)
+		.bind(GENERATOR_VERSION, limit)
 		.all();
 
 	return json({ scores: results }, { headers: { 'cache-control': 'no-store' } });
