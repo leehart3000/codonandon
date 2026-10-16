@@ -18,6 +18,8 @@
 	import { describeLength } from '#lib/genetics/peptides.js';
 	import { version } from '$app/env';
 	import HighScores, { type NewScore } from '#lib/components/HighScores.svelte';
+	import { cuesFor } from '#lib/audio/cues.js';
+	import { play, setSoundEnabled, unlockAudio } from '#lib/audio/sound.js';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -34,6 +36,9 @@
 
 	/** Where the "show tips" choice is remembered in this browser. */
 	const SHOW_TIPS_KEY = 'showTips';
+
+	/** Where the sound on/off choice is remembered in this browser. */
+	const SOUND_KEY = 'sound';
 
 	/** Smallest and largest square size, in pixels. */
 	const MIN_CELL = 14;
@@ -70,6 +75,10 @@
 	let paused = $state(false);
 	/** Whether tip cards and the goal bar appear during the game. */
 	let showTips = $state(false);
+	/** Whether sound effects play. On by default. */
+	let soundOn = $state(true);
+	/** Waits a moment after GAME OVER before showing the high-score table. */
+	let scoresTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The tips setting for the game in progress: changes to the switch apply from the next game. */
 	let tipsThisGame = $state(true);
 	/** The tip card being shown, which pauses play until Continue. */
@@ -172,6 +181,8 @@
 
 	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
+		unlockAudio();
+		clearTimeout(scoresTimer);
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
 		paused = false;
@@ -193,21 +204,36 @@
 
 	function act(action: Action): ActionResult | null {
 		if (!playing) return null;
+		const before = game.state.active;
 		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
+		const after = game.state.active;
+
 		if (result.locked) piecesPlaced++;
 		if (result.clear) bestClear = Math.max(bestClear, result.clear.rows.length);
 		if (result.gameOver) {
 			finalBonus = result.gameOver.unfinishedPoints;
 			durationMs = Math.round(performance.now() - startedAt);
 			gameTime = durationMs;
-			// Arcade-style: straight to the high-score table, where a top-100 score gets its row.
-			if (game.state.score.score > 0) showScores = true;
+			// Arcade-style: GAME OVER for a moment, then the high-score table (it loads meanwhile).
+			if (game.state.score.score > 0) {
+				scoresTimer = setTimeout(() => {
+					if (started && view.over) showScores = true;
+				}, 2000);
+			}
 		}
-		if (tipsThisGame && !view.over && view.score.level > levelBefore) {
-			tip = tipForLevel(view.score.level) ?? null;
+
+		const levelledUp = !view.over && view.score.level > levelBefore;
+		for (const cue of cuesFor(action, result, {
+			moved: !!before && !!after && (before.x !== after.x || before.y !== after.y),
+			turned: !!before && !!after && before.piece !== after.piece && !result.locked,
+			levelledUp
+		})) {
+			play(cue.sound, cue.rows);
 		}
+
+		if (tipsThisGame && levelledUp) tip = tipForLevel(view.score.level) ?? null;
 		return result;
 	}
 
@@ -220,6 +246,18 @@
 			localStorage.setItem(SHOW_TIPS_KEY, String(value));
 		} catch {
 			// Storage can be unavailable (e.g. private browsing); the choice just isn't remembered.
+		}
+	}
+
+	/** Turn sound effects on or off, and remember the choice. */
+	function setSound(value: boolean) {
+		soundOn = value;
+		setSoundEnabled(value);
+		if (value) unlockAudio();
+		try {
+			localStorage.setItem(SOUND_KEY, String(value));
+		} catch {
+			// Not remembered; that's fine.
 		}
 	}
 
@@ -238,6 +276,7 @@
 
 	/** Leave the current game (or the game-over screen) and return to the home screen. */
 	function goHome() {
+		clearTimeout(scoresTimer);
 		started = false;
 		paused = false;
 		tip = null;
@@ -555,6 +594,14 @@
 		}
 		fitBoard();
 
+		// Restore the sound choice (on unless turned off).
+		try {
+			soundOn = localStorage.getItem(SOUND_KEY) !== 'false';
+		} catch {
+			// Storage unavailable: keep the default (sound on).
+		}
+		setSoundEnabled(soundOn);
+
 		// The automatic fall, timed by the level.
 		let last = performance.now();
 		let waited = 0;
@@ -664,26 +711,26 @@
 	</button>
 {/snippet}
 
-{#snippet tipsSwitch()}
+{#snippet toggle(label: string, on: boolean, onToggle: () => void)}
 	<button
 		type="button"
 		role="switch"
-		aria-checked={showTips}
+		aria-checked={on}
 		class="flex min-h-11 items-center gap-3 text-sm"
-		onclick={() => setShowTips(!showTips)}
+		onclick={onToggle}
 	>
 		<span
-			class="relative h-7 w-12 shrink-0 rounded-full transition-colors {showTips
+			class="relative h-7 w-12 shrink-0 rounded-full transition-colors {on
 				? 'bg-adenine'
 				: 'bg-slate-500'}"
 		>
 			<span
-				class="absolute top-1 h-5 w-5 rounded-full bg-white transition-all {showTips
+				class="absolute top-1 h-5 w-5 rounded-full bg-white transition-all {on
 					? 'left-6'
 					: 'left-1'}"
 			></span>
 		</span>
-		Show tips in game
+		{label}
 	</button>
 {/snippet}
 
@@ -852,11 +899,42 @@
 								</div>
 							{:else if screen === 'settings'}
 								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Settings</h2>
-								{@render tipsSwitch()}
+								<div class="flex flex-col items-start">
+									{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
+									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
+								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
 									{@render menuButton('Main menu', () => (screen = 'home'))}
 								</div>
 							{:else}
+								<button
+									type="button"
+									class="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-gold hover:bg-gold/10"
+									aria-label="Sound"
+									aria-pressed={soundOn}
+									onclick={() => setSound(!soundOn)}
+								>
+									<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+										<path d="M4 9v6h4l5 4V5L8 9H4z" />
+										{#if soundOn}
+											<path
+												d="M16 8.5a4.5 4.5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+											/>
+										{:else}
+											<path
+												d="M16 9l5 6M21 9l-5 6"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+											/>
+										{/if}
+									</svg>
+								</button>
 								<p class="text-3xl font-black tracking-tight text-gold">{APP.name}</p>
 								<p class="text-xs opacity-80">
 									An educational game with falling tetrominoes and amino acids
@@ -1054,21 +1132,4 @@
 			{/if}
 		</div>
 	</div>
-
-	<!-- Chain details for wide screens, once a game has started. -->
-	{#if started}
-		<aside class="hidden w-64 flex-col gap-2 pt-24 lg:flex">
-			<h2 class="font-semibold">Chain</h2>
-			{#if view.translation.chain}
-				<p class="font-mono text-sm">
-					{view.translation.chain.map((aminoAcid) => AMINO_ACIDS[aminoAcid].short).join('–')}
-				</p>
-				{#if bankable !== null}
-					<p class="text-sm">Worth +{formatNumber(bankable)} if a stop comes now</p>
-				{/if}
-			{:else}
-				<p class="text-sm">No chain yet</p>
-			{/if}
-		</aside>
-	{/if}
 </div>
