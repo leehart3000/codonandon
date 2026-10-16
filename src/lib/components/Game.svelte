@@ -100,7 +100,7 @@
 	let savedRank = $state<number | null>(null);
 	/** The database ID of the just-saved score, for highlighting it in the table. */
 	let savedId = $state<number | null>(null);
-	/** Gameplay stats for the Stats page. */
+	/** Gameplay stats for the Stats page: tetrominoes placed, best clear, game length. */
 	let piecesPlaced = $state(0);
 	let bestClear = $state(0);
 	let gameTime = $state(0);
@@ -787,10 +787,7 @@
 				{/if}
 			</span>
 			<span class="text-right leading-tight">
-				<span class="block font-mono font-bold"
-					><span class="font-sans text-[10px] uppercase opacity-70">Score</span>
-					{view.score.score}</span
-				>
+				<span class="block font-mono font-bold">Score {view.score.score}</span>
 				<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
 			</span>
 			<span class="text-right leading-tight">
@@ -962,7 +959,7 @@
 									<dd class="font-mono text-base font-bold">{formatTime(gameTime)}</dd>
 								</div>
 								<div>
-									<dt class="opacity-70">Pieces</dt>
+									<dt class="opacity-70">Tetrominoes</dt>
 									<dd class="font-mono text-base font-bold">{piecesPlaced}</dd>
 								</div>
 								<div>
@@ -1027,11 +1024,8 @@
 								{@render menuButton('Back', () => (showStats = false))}
 							</div>
 						{:else}
-							<p class="text-sm font-black tracking-widest text-gold uppercase">Game over</p>
-							<p class="font-mono text-2xl font-black text-gold">
-								<span class="font-sans text-sm uppercase">Score</span>
-								{view.score.score}
-							</p>
+							<h2 class="text-3xl font-black tracking-widest text-gold uppercase">Game over</h2>
+							<p class="font-mono text-2xl font-black text-gold">Score {view.score.score}</p>
 							{#if finalBonus > 0}
 								<p class="text-xs opacity-80">
 									Includes +{formatNumber(finalBonus)} for an unfinished chain
