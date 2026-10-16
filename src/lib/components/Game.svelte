@@ -100,6 +100,10 @@
 	let savedRank = $state<number | null>(null);
 	/** Whether the high-score table is showing. */
 	let showScores = $state(false);
+	/** Which home screen page is showing when no game is running. */
+	let screen = $state<'home' | 'instructions' | 'settings'>('home');
+	/** Asking "Quit this game?" on the pause screen. */
+	let confirmQuit = $state(false);
 	let turnstileBox: HTMLDivElement | undefined = $state();
 	/** When the current game started, and how long it lasted (for the server's speed check). */
 	let startedAt = 0;
@@ -257,7 +261,21 @@
 	}
 
 	function togglePause() {
-		if (started && !view.over && !tip) paused = !paused;
+		if (started && !view.over && !tip) {
+			paused = !paused;
+			confirmQuit = false;
+		}
+	}
+
+	/** Leave the current game (or the game-over screen) and return to the home screen. */
+	function goHome() {
+		started = false;
+		paused = false;
+		tip = null;
+		howTo = null;
+		confirmQuit = false;
+		showScores = false;
+		screen = 'home';
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -294,7 +312,10 @@
 		}
 
 		if (!started) {
-			if (event.key === 'Enter') {
+			// Escape goes back to the home page; Enter starts a game from it.
+			if (event.key === 'Escape' && screen !== 'home') {
+				screen = 'home';
+			} else if (event.key === 'Enter' && screen === 'home') {
 				event.preventDefault();
 				start();
 			}
@@ -657,6 +678,16 @@
 	</div>
 {/snippet}
 
+{#snippet menuButton(label: string, onclick: () => void)}
+	<button
+		type="button"
+		class="min-h-11 w-full rounded border-2 border-white/80 px-4 font-semibold tracking-wide uppercase hover:bg-white/10"
+		{onclick}
+	>
+		{label}
+	</button>
+{/snippet}
+
 {#snippet tipsSwitch()}
 	<button
 		type="button"
@@ -795,51 +826,83 @@
 				{#if card && howTo !== null}
 					{@render tipCard(card, howTo + 1 < TIPS.length ? 'Next' : 'Done', nextHowTo)}
 				{:else}
-					<div
-						class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 p-4 text-center text-white"
-					>
-						{#if mounted}
-							<button
-								type="button"
-								class="rounded bg-white px-8 py-3 text-xl font-semibold text-slate-900"
-								onclick={start}
-							>
-								Start
-							</button>
-							<div class="flex flex-col items-center">
-								<button
-									type="button"
-									class="min-h-11 text-sm underline"
-									onclick={() => (howTo = 0)}
-								>
-									Game tips
-								</button>
+					<div class="absolute inset-0 overflow-y-auto bg-slate-900/90 text-white">
+						<div class="flex min-h-full flex-col items-center justify-center gap-3 p-4 text-center">
+							{#if !mounted}
+								<p>Loading…</p>
+							{:else if screen === 'instructions'}
+								<h2 class="text-lg font-black tracking-wide uppercase">Instructions</h2>
+								<p class="text-sm">
+									Clear rows to score. Form start and stop codons to build chains of amino acids,
+									for bonus points.
+								</p>
+								<dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-left text-sm">
+									{#if touch}
+										<dt class="font-bold">Drag sideways</dt>
+										<dd>Move</dd>
+										<dt class="font-bold">Drag down</dt>
+										<dd>Move down</dd>
+										<dt class="font-bold">Flick down</dt>
+										<dd>Drop</dd>
+										<dt class="font-bold">Tap</dt>
+										<dd>Turn</dd>
+										<dt class="font-bold">Swipe up</dt>
+										<dd>Turn back</dd>
+										<dt class="font-bold">Pause button</dt>
+										<dd>Pause</dd>
+									{:else}
+										<dt class="font-bold">← →</dt>
+										<dd>Move</dd>
+										<dt class="font-bold">↓</dt>
+										<dd>Move down</dd>
+										<dt class="font-bold">Space</dt>
+										<dd>Drop</dd>
+										<dt class="font-bold">↑ or X</dt>
+										<dd>Turn</dd>
+										<dt class="font-bold">Z</dt>
+										<dd>Turn back</dd>
+										<dt class="font-bold">P or click</dt>
+										<dd>Pause</dd>
+									{/if}
+								</dl>
+								<div class="flex w-full max-w-56 flex-col gap-2">
+									{@render menuButton('Game tips', () => (howTo = 0))}
+									{@render menuButton('Back', () => (screen = 'home'))}
+								</div>
+							{:else if screen === 'settings'}
+								<h2 class="text-lg font-black tracking-wide uppercase">Settings</h2>
 								{@render tipsSwitch()}
-							</div>
-							<button
-								type="button"
-								class="min-h-11 text-sm underline"
-								onclick={() => (showScores = true)}
-							>
-								High scores
-							</button>
-							<p class="text-xs opacity-80">
-								{#if touch}
-									Drag to move · Tap to turn · Swipe up to turn back · Flick down to drop
-								{:else}
-									← → move · ↓ down · ↑ or X turn · Z turn back · Space drop · P or click the board
-									to pause · Enter to start
+								<div class="flex w-full max-w-56 flex-col gap-2">
+									{@render menuButton('Back', () => (screen = 'home'))}
+								</div>
+							{:else}
+								<p class="text-3xl font-black tracking-tight">{APP.name}</p>
+								<p class="text-xs opacity-80">
+									A falling-blocks game about mRNA, codons and amino acids
+								</p>
+								<div class="flex w-full max-w-56 flex-col gap-2">
+									<button
+										type="button"
+										class="min-h-12 w-full rounded bg-white px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
+										onclick={start}
+									>
+										Start game
+									</button>
+									{@render menuButton('Instructions', () => (screen = 'instructions'))}
+									{@render menuButton('High scores', () => (showScores = true))}
+									{@render menuButton('Settings', () => (screen = 'settings'))}
+								</div>
+								{#if !touch}
+									<p class="text-xs opacity-70">Press Enter to start</p>
 								{/if}
-							</p>
-							<p class="text-xs opacity-80">
-								<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
-									Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
-								</a>
-								· Version {version}
-							</p>
-						{:else}
-							<p>Loading…</p>
-						{/if}
+								<p class="text-xs opacity-80">
+									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
+										Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
+									</a>
+									· Version {version}
+								</p>
+							{/if}
+						</div>
 					</div>
 				{/if}
 			{:else if tip}
@@ -966,28 +1029,54 @@
 							</form>
 						{/if}
 
-						<button
-							type="button"
-							class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
-							onclick={start}
-						>
-							Play again
-						</button>
-						{@render tipsSwitch()}
+						<div class="flex w-full max-w-56 gap-2">
+							<button
+								type="button"
+								class="min-h-11 flex-1 rounded bg-white px-4 font-semibold text-slate-900"
+								onclick={start}
+							>
+								Play again
+							</button>
+							<button
+								type="button"
+								class="min-h-11 flex-1 rounded border-2 border-white/80 px-4 font-semibold"
+								onclick={goHome}
+							>
+								Home
+							</button>
+						</div>
 					</div>
 				</div>
 			{:else if paused}
 				<div
-					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 text-white"
+					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-4 text-center text-white"
 				>
-					<p class="text-xl font-bold">Paused</p>
-					<button
-						type="button"
-						class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
-						onclick={togglePause}
-					>
-						Resume
-					</button>
+					{#if confirmQuit}
+						<p class="text-lg font-bold">Quit this game?</p>
+						<p class="text-sm">Your score won't be saved.</p>
+						<div class="flex w-full max-w-56 flex-col gap-2">
+							<button
+								type="button"
+								class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+								onclick={() => (confirmQuit = false)}
+							>
+								Keep playing
+							</button>
+							{@render menuButton('Quit', goHome)}
+						</div>
+					{:else}
+						<p class="text-xl font-bold">Paused</p>
+						<div class="flex w-full max-w-56 flex-col gap-2">
+							<button
+								type="button"
+								class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+								onclick={togglePause}
+							>
+								Resume
+							</button>
+							{@render menuButton('Quit game', () => (confirmQuit = true))}
+						</div>
+					{/if}
 				</div>
 			{/if}
 

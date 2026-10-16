@@ -63,7 +63,6 @@
 						<th class="text-left">Name</th>
 						<th class="text-right">Score</th>
 						<th class="text-right">Lv</th>
-						<th class="text-right">Chains</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -71,21 +70,13 @@
 						{@const mine = index + 1 === highlightRank}
 						<tr class:text-green-300={mine} class:font-bold={mine}>
 							<td>{index + 1}</td>
-							<td class="whitespace-pre"
-								>{entry.initials}{#if entry.tips}<span class="opacity-60" aria-label="tips on"
-										>*</span
-									>{/if}</td
-							>
+							<td class="whitespace-pre">{entry.initials}</td>
 							<td class="text-right">{formatNumber(entry.score)}</td>
-							<td class="text-right">{entry.level}</td>
-							<td class="text-right">{entry.chains}</td>
+							<td class="text-right opacity-70">{entry.level}</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
-			{#if scores.some((entry) => entry.tips)}
-				<p class="text-[10px] opacity-70">* Tips were on for this game.</p>
-			{/if}
 		{/if}
 
 		<button
