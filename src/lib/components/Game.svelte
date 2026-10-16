@@ -920,21 +920,19 @@
 								<p class="text-xs opacity-80">
 									An educational game with falling tetrominoes and amino acids
 								</p>
-								<div class="flex w-full max-w-56 flex-col gap-2">
+								<div class="my-3 flex w-full max-w-56 flex-col gap-2">
 									<button
 										type="button"
 										class="min-h-12 w-full rounded bg-gold px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
+										aria-keyshortcuts="Enter"
 										onclick={start}
 									>
-										Start game
+										Start game{#if !touch}<span aria-hidden="true" class="ml-2">↵</span>{/if}
 									</button>
 									{@render menuButton('Instructions', () => (screen = 'instructions'))}
 									{@render menuButton('High scores', () => (showScores = true))}
 									{@render menuButton('Settings', () => (screen = 'settings'))}
 								</div>
-								{#if !touch}
-									<p class="text-xs opacity-70">Press Enter to start</p>
-								{/if}
 								<p class="text-xs opacity-80">
 									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
 										Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
@@ -951,7 +949,7 @@
 				<div class="absolute inset-0 overflow-y-auto bg-slate-900">
 					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
 						{#if showStats}
-							<h2 class="text-lg font-black tracking-wide text-gold uppercase">Stats</h2>
+							<h2 class="mb-2 text-lg font-black tracking-wide text-gold uppercase">Stats</h2>
 
 							<dl class="grid w-full grid-cols-3 gap-1 text-xs">
 								<div>
@@ -963,7 +961,7 @@
 									<dd class="font-mono text-base font-bold">{piecesPlaced}</dd>
 								</div>
 								<div>
-									<dt class="opacity-70">Best clear</dt>
+									<dt class="opacity-70">Best Clear</dt>
 									<dd class="font-mono text-base font-bold">
 										{bestClear} row{bestClear === 1 ? '' : 's'}
 									</dd>
@@ -1013,14 +1011,9 @@
 										.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
 									have more than one codon.
 								</p>
-							{:else if collected.length === 0}
-								<p class="text-xs">
-									No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
-									chain.
-								</p>
 							{/if}
 
-							<div class="flex w-full max-w-56 flex-col gap-2">
+							<div class="mt-2 flex w-full max-w-56 flex-col gap-2">
 								{@render menuButton('Back', () => (showStats = false))}
 							</div>
 						{:else}
@@ -1032,7 +1025,7 @@
 								</p>
 							{/if}
 
-							<dl class="grid w-full grid-cols-4 gap-1 text-xs">
+							<dl class="my-3 grid w-full grid-cols-4 gap-1 text-xs">
 								<div>
 									<dt class="opacity-70">Level</dt>
 									<dd class="font-mono text-base font-bold">{view.score.level}</dd>
