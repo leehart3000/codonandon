@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* The game's accent colour: the gold of the G base and the icon. Use as text-gold, bg-gold, border-gold. */
+@theme {
+	--color-gold: #e3be71;
+}
+
 /* Tailwind removes default link styles, so make links clearly clickable. */
 @layer base {
 	a {
@@ -42,4 +47,14 @@ body {
 	[role='button']:not(:disabled) {
 		cursor: pointer;
 	}
+}
+
+/* A dark arcade page. */
+html {
+	color-scheme: dark;
+}
+
+body {
+	background-color: #020617;
+	color: #f1f5f9;
 }

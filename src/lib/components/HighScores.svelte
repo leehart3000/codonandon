@@ -42,7 +42,7 @@
 </script>
 
 <div
-	class="absolute inset-0 z-30 overflow-y-auto bg-slate-900/95 text-white"
+	class="absolute inset-0 z-30 overflow-y-auto bg-slate-900 text-white"
 	role="dialog"
 	aria-labelledby="high-scores-title"
 >
@@ -56,23 +56,23 @@
 		{:else if scores.length === 0}
 			<p class="text-sm">No scores yet. Be the first!</p>
 		{:else}
-			<table class="w-full font-mono text-sm">
+			<table class="mx-auto font-mono text-sm">
 				<thead class="text-[10px] uppercase opacity-70">
 					<tr>
-						<th class="text-left">#</th>
-						<th class="text-left">Name</th>
-						<th class="text-right">Score</th>
-						<th class="text-right">Lv</th>
+						<th class="px-2 text-right">#</th>
+						<th class="px-2 text-left">Name</th>
+						<th class="px-2 text-right">Lv</th>
+						<th class="px-2 text-right">Score</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each scores as entry, index (index)}
 						{@const mine = index + 1 === highlightRank}
-						<tr class:text-green-300={mine} class:font-bold={mine}>
-							<td>{index + 1}</td>
-							<td class="whitespace-pre">{entry.initials}</td>
-							<td class="text-right">{formatNumber(entry.score)}</td>
-							<td class="text-right opacity-70">{entry.level}</td>
+						<tr class:text-gold={mine} class:font-bold={mine}>
+							<td class="px-2 text-right">{index + 1}</td>
+							<td class="px-2 whitespace-pre">{entry.initials}</td>
+							<td class="px-2 text-right opacity-70">{entry.level}</td>
+							<td class="px-2 text-right">{formatNumber(entry.score)}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -81,7 +81,7 @@
 
 		<button
 			type="button"
-			class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+			class="min-h-11 rounded border-2 border-gold px-6 font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
 			onclick={onClose}
 		>
 			Back

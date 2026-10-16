@@ -78,7 +78,7 @@
 	let started = $state(false);
 	let paused = $state(false);
 	/** Whether tip cards and the goal bar appear during the game. */
-	let showTips = $state(true);
+	let showTips = $state(false);
 	/** The tips setting for the game in progress: changes to the switch apply from the next game. */
 	let tipsThisGame = $state(true);
 	/** The tip card being shown, which pauses play until Continue. */
@@ -579,9 +579,9 @@
 
 		// Restore the "show tips" choice, if this browser remembers one.
 		try {
-			showTips = localStorage.getItem(SHOW_TIPS_KEY) !== 'false';
+			showTips = localStorage.getItem(SHOW_TIPS_KEY) === 'true';
 		} catch {
-			// Storage unavailable: keep the default (tips on).
+			// Storage unavailable: keep the default (tips off).
 		}
 		// Restore the player's initials, if this browser remembers them.
 		try {
@@ -681,7 +681,7 @@
 {#snippet menuButton(label: string, onclick: () => void)}
 	<button
 		type="button"
-		class="min-h-11 w-full rounded border-2 border-white/80 px-4 font-semibold tracking-wide uppercase hover:bg-white/10"
+		class="min-h-11 w-full rounded border-2 border-gold px-4 font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
 		{onclick}
 	>
 		{label}
@@ -786,7 +786,7 @@
 			>
 				{#if started && !view.over}
 					{#if chainOpen}
-						<p class="text-green-700">
+						<p class="text-green-400">
 							Chain ×2{bankable !== null ? ` · stop now: +${formatNumber(bankable)}` : ''}
 						</p>
 						<p class="flex items-center gap-1.5">
@@ -795,7 +795,7 @@
 							{@render chips('UGA', 'stop')}
 						</p>
 					{:else if startReady}
-						<p class="text-green-700">Start codon ready!</p>
+						<p class="text-green-400">Start codon ready!</p>
 						<p>Clear its row to start a chain</p>
 					{:else}
 						<p>Form a start codon</p>
@@ -876,14 +876,14 @@
 									{@render menuButton('Back', () => (screen = 'home'))}
 								</div>
 							{:else}
-								<p class="text-3xl font-black tracking-tight">{APP.name}</p>
+								<p class="text-3xl font-black tracking-tight text-gold">{APP.name}</p>
 								<p class="text-xs opacity-80">
-									A falling-blocks game about mRNA, codons and amino acids
+									An educational game with falling tetrominoes and amino acids
 								</p>
 								<div class="flex w-full max-w-56 flex-col gap-2">
 									<button
 										type="button"
-										class="min-h-12 w-full rounded bg-white px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
+										class="min-h-12 w-full rounded bg-gold px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
 										onclick={start}
 									>
 										Start game
@@ -1029,21 +1029,15 @@
 							</form>
 						{/if}
 
-						<div class="flex w-full max-w-56 gap-2">
+						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
-								class="min-h-11 flex-1 rounded bg-white px-4 font-semibold text-slate-900"
+								class="min-h-11 w-full rounded bg-gold px-4 font-semibold tracking-wide text-slate-900 uppercase"
 								onclick={start}
 							>
 								Play again
 							</button>
-							<button
-								type="button"
-								class="min-h-11 flex-1 rounded border-2 border-white/80 px-4 font-semibold"
-								onclick={goHome}
-							>
-								Home
-							</button>
+							{@render menuButton('Home', goHome)}
 						</div>
 					</div>
 				</div>
@@ -1057,7 +1051,7 @@
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
-								class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+								class="min-h-11 rounded bg-gold px-6 font-semibold tracking-wide text-slate-900 uppercase"
 								onclick={() => (confirmQuit = false)}
 							>
 								Keep playing
@@ -1069,7 +1063,7 @@
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
-								class="min-h-11 rounded bg-white px-6 font-semibold text-slate-900"
+								class="min-h-11 rounded bg-gold px-6 font-semibold tracking-wide text-slate-900 uppercase"
 								onclick={togglePause}
 							>
 								Resume

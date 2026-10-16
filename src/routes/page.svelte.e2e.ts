@@ -23,9 +23,14 @@ test('the game waits for the player to press Start', async ({ page }) => {
 	await expect(start).toBeHidden();
 });
 
-test('shows the first card, and play begins after Continue', async ({ page }) => {
+test('with tips on in Settings, the first card shows, and play begins after Continue', async ({
+	page
+}) => {
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Start' }).click();
+	await page.getByRole('button', { name: 'Settings' }).click();
+	await page.getByRole('switch', { name: 'Show tips in game' }).click();
+	await page.getByRole('button', { name: 'Back' }).click();
+	await page.getByRole('button', { name: 'Start game' }).click();
 	const card = page.getByRole('dialog');
 	await expect(card).toContainText('Bases and codons');
 	await page.getByRole('button', { name: 'Continue' }).click();

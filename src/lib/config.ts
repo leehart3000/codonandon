@@ -10,6 +10,6 @@ export const APP = {
 	sourceUrl: 'https://github.com/leehart3000/tetraminos',
 	/** Cloudflare Turnstile site key (public). The matching secret is a Worker secret. */
 	turnstileSiteKey: '0x4AAAAAAFX5a4VULA9dZlJg',
-	themeColor: '#0f172a',
-	backgroundColor: '#0f172a'
+	themeColor: '#020617',
+	backgroundColor: '#020617'
 } as const;
