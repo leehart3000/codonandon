@@ -3,34 +3,37 @@
 
 	/** One row of the high-score table, as the API returns it. */
 	interface Entry {
+		id: number;
 		initials: string;
 		score: number;
 		level: number;
 	}
 
 	let {
-		highlightRank = null,
+		highlightId = null,
+		startLimit = 10,
 		closeLabel = 'Back',
 		onClose
 	}: {
-		/** The player's just-saved position, highlighted in the table. */
-		highlightRank?: number | null;
+		/** The player's just-saved score, highlighted in the table. */
+		highlightId?: number | null;
+		/** Open at the top 10 or the top 100. */
+		startLimit?: 10 | 100;
 		/** What the close button says: "Main menu" or "Back". */
 		closeLabel?: string;
 		onClose: () => void;
 	} = $props();
 
-	/** Top 10 by default; opens at the top 100 if the highlighted score is further down. */
-	let limit = $state(untrack(() => ((highlightRank ?? 0) > 10 ? 100 : 10)));
+	let limit = $state(untrack(() => startLimit));
 	let scores = $state<Entry[] | null>(null);
 	let error = $state('');
 
 	async function load(count: number) {
-		scores = null;
 		error = '';
 		try {
 			const response = await fetch(`/api/scores?limit=${count}`);
 			if (!response.ok) throw new Error('Not loaded');
+			// Replace the list only once the new one has arrived, so there's no flicker.
 			scores = ((await response.json()) as { scores: Entry[] }).scores;
 			// Bring the player's own score into view.
 			await tick();
@@ -53,8 +56,8 @@
 	aria-labelledby="high-scores-title"
 >
 	<div class="flex min-h-full flex-col items-center justify-center gap-3 p-3">
-		<h2 id="high-scores-title" class="text-2xl font-black tracking-wide text-gold uppercase">
-			{limit === 10 ? 'Top 10' : 'Top 100'}
+		<h2 id="high-scores-title" class="text-xl font-black tracking-wide text-gold uppercase">
+			Top {limit} scores
 		</h2>
 
 		{#if error}
@@ -74,8 +77,8 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each scores as entry, index (index)}
-						{@const mine = index + 1 === highlightRank}
+					{#each scores as entry, index (entry.id)}
+						{@const mine = entry.id === highlightId}
 						<tr id={mine ? 'my-score' : undefined} class:text-gold={mine} class:font-bold={mine}>
 							<td class="px-2 text-right">{index + 1}</td>
 							<td class="px-2 whitespace-pre">{entry.initials}</td>
@@ -87,17 +90,17 @@
 			</table>
 		{/if}
 
-		<div class="flex w-full max-w-56 flex-col gap-2">
+		<div class="flex w-full max-w-72 gap-2">
 			<button
 				type="button"
-				class="min-h-11 rounded border-2 border-gold px-6 font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
+				class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
 				onclick={() => (limit = limit === 10 ? 100 : 10)}
 			>
-				{limit === 10 ? 'Top 100' : 'Top 10'}
+				Top {limit === 10 ? 100 : 10}
 			</button>
 			<button
 				type="button"
-				class="min-h-11 rounded border-2 border-gold px-6 font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
+				class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
 				onclick={onClose}
 			>
 				{closeLabel}

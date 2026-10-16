@@ -20,10 +20,9 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const { results } = await db
 		.prepare(
-			`SELECT initials, score, level, rows, chains, longest_chain AS longestChain,
-				tips, offline, created_at AS createdAt
+			`SELECT id, initials, score, level
 			FROM scores WHERE generator_version = ?
-			ORDER BY score DESC, created_at ASC LIMIT ?`
+			ORDER BY score DESC, id ASC LIMIT ?`
 		)
 		.bind(GENERATOR_VERSION, limit)
 		.all();
@@ -60,11 +59,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		.first();
 	if (blocked) return json({ error: 'Please choose different initials.' }, { status: 422 });
 
-	await db
+	const inserted = await db
 		.prepare(
 			`INSERT INTO scores
 				(initials, score, level, rows, chains, longest_chain, duration_ms, generator_version, tips, offline)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			RETURNING id`
 		)
 		.bind(
 			s.initials,
@@ -78,12 +78,17 @@ export const POST: RequestHandler = async ({ request }) => {
 			s.tips ? 1 : 0,
 			s.offline ? 1 : 0
 		)
-		.run();
+		.first<{ id: number }>();
+	if (!inserted) return json({ error: 'Sorry, the score could not be saved.' }, { status: 500 });
 
-	const higher = await db
-		.prepare('SELECT COUNT(*) AS count FROM scores WHERE generator_version = ? AND score > ?')
-		.bind(s.generatorVersion, s.score)
+	// Position on the table: everything higher, plus equal scores saved earlier (they're listed first).
+	const ahead = await db
+		.prepare(
+			`SELECT COUNT(*) AS count FROM scores
+			WHERE generator_version = ? AND (score > ? OR (score = ? AND id < ?))`
+		)
+		.bind(s.generatorVersion, s.score, s.score, inserted.id)
 		.first<{ count: number }>();
 
-	return json({ rank: (higher?.count ?? 0) + 1 }, { status: 201 });
+	return json({ id: inserted.id, rank: (ahead?.count ?? 0) + 1 }, { status: 201 });
 };

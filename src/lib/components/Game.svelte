@@ -98,6 +98,12 @@
 	let saving = $state(false);
 	let saveError = $state('');
 	let savedRank = $state<number | null>(null);
+	/** The database ID of the just-saved score, for highlighting it in the table. */
+	let savedId = $state<number | null>(null);
+	/** Gameplay stats for the Stats page. */
+	let piecesPlaced = $state(0);
+	let bestClear = $state(0);
+	let gameTime = $state(0);
 	/** Whether the high-score table is showing. */
 	let showScores = $state(false);
 	/** Whether the game-over Stats page is showing. */
@@ -151,12 +157,16 @@
 	const collected = $derived(
 		ALL_AMINO_ACIDS.filter((aminoAcid) => view.stats.aminoAcids[aminoAcid])
 	);
-	/** The longest chain, shortened for display if very long. */
+	/** The longest chain for display: up to 24 amino acids, then a count of the rest. */
 	const longestShown = $derived(
-		view.stats.longestChainSequence.length > 12
-			? [...view.stats.longestChainSequence.slice(0, 12).map((a) => AMINO_ACIDS[a].short), '…']
-			: view.stats.longestChainSequence.map((a) => AMINO_ACIDS[a].short)
+		view.stats.longestChainSequence.slice(0, 24).map((a) => AMINO_ACIDS[a].short)
 	);
+	const longestMore = $derived(Math.max(0, view.stats.longestChainSequence.length - 24));
+	/** A game's length as minutes and seconds, e.g. 4:32. */
+	const formatTime = (ms: number) => {
+		const seconds = Math.round(ms / 1000);
+		return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+	};
 
 	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
@@ -167,6 +177,10 @@
 		saving = false;
 		saveError = '';
 		savedRank = null;
+		savedId = null;
+		piecesPlaced = 0;
+		bestClear = 0;
+		gameTime = 0;
 		showScores = false;
 		showStats = false;
 		startedAt = performance.now();
@@ -182,9 +196,12 @@
 		const levelBefore = game.state.score.level;
 		const result = game.act(action);
 		view = game.state;
+		if (result.locked) piecesPlaced++;
+		if (result.clear) bestClear = Math.max(bestClear, result.clear.rows.length);
 		if (result.gameOver) {
 			finalBonus = result.gameOver.unfinishedPoints;
 			durationMs = Math.round(performance.now() - startedAt);
+			gameTime = durationMs;
 		}
 		if (tipsThisGame && !view.over && view.score.level > levelBefore) {
 			tip = tipForLevel(view.score.level) ?? null;
@@ -235,9 +252,10 @@
 					turnstileToken
 				})
 			});
-			const result = (await response.json()) as { rank?: number; error?: string };
+			const result = (await response.json()) as { id?: number; rank?: number; error?: string };
 			if (response.ok && result.rank) {
 				savedRank = result.rank;
+				savedId = result.id ?? null;
 				showScores = true;
 				try {
 					localStorage.setItem(INITIALS_KEY, clean);
@@ -769,7 +787,10 @@
 				{/if}
 			</span>
 			<span class="text-right leading-tight">
-				<span class="block font-mono font-bold">{formatNumber(view.score.score)}</span>
+				<span class="block font-mono font-bold"
+					><span class="font-sans text-[10px] uppercase opacity-70">Score</span>
+					{view.score.score}</span
+				>
 				<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
 			</span>
 			<span class="text-right leading-tight">
@@ -935,30 +956,22 @@
 						{#if showStats}
 							<h2 class="text-lg font-black tracking-wide text-gold uppercase">Stats</h2>
 
-							{#if view.stats.longestChain >= 2}
-								<section class="w-full">
-									<h3 class="text-xs font-bold tracking-wide uppercase opacity-70">
-										Your longest chain
-									</h3>
-									<p class="mt-1 font-mono text-xs break-words">{longestShown.join('–')}</p>
-									<p class="mt-1 text-xs">
-										{view.stats.longestChain} amino acids: {describeLength(
-											view.stats.longestChain
-										)}.
-									</p>
-								</section>
-							{:else if redundancyFact}
-								<p class="text-xs">
-									{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
-										.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
-									have more than one codon.
-								</p>
-							{:else if collected.length === 0}
-								<p class="text-xs">
-									No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
-									chain.
-								</p>
-							{/if}
+							<dl class="grid w-full grid-cols-3 gap-1 text-xs">
+								<div>
+									<dt class="opacity-70">Time</dt>
+									<dd class="font-mono text-base font-bold">{formatTime(gameTime)}</dd>
+								</div>
+								<div>
+									<dt class="opacity-70">Pieces</dt>
+									<dd class="font-mono text-base font-bold">{piecesPlaced}</dd>
+								</div>
+								<div>
+									<dt class="opacity-70">Best clear</dt>
+									<dd class="font-mono text-base font-bold">
+										{bestClear} row{bestClear === 1 ? '' : 's'}
+									</dd>
+								</div>
+							</dl>
 
 							<section class="w-full">
 								<h3 class="text-xs font-bold tracking-wide uppercase opacity-70">
@@ -982,12 +995,43 @@
 								</ul>
 							</section>
 
+							{#if view.stats.longestChain >= 2}
+								<section class="w-full">
+									<h3 class="text-xs font-bold tracking-wide uppercase opacity-70">
+										Your longest chain
+									</h3>
+									<p class="mt-1 font-mono text-xs break-words">
+										{longestShown.join('–')}{#if longestMore > 0}
+											… +{longestMore} more{/if}
+									</p>
+									<p class="mt-1 text-xs">
+										{view.stats.longestChain} amino acids: {describeLength(
+											view.stats.longestChain
+										)}.
+									</p>
+								</section>
+							{:else if redundancyFact}
+								<p class="text-xs">
+									{AMINO_ACIDS[redundancyFact.aminoAcid].name} came from {redundancyFact.codons
+										.length} different codons: {redundancyFact.codons.join(', ')}. Many amino acids
+									have more than one codon.
+								</p>
+							{:else if collected.length === 0}
+								<p class="text-xs">
+									No amino acids this time. Form AUG anywhere in a row, then clear it, to start a
+									chain.
+								</p>
+							{/if}
+
 							<div class="flex w-full max-w-56 flex-col gap-2">
 								{@render menuButton('Back', () => (showStats = false))}
 							</div>
 						{:else}
 							<p class="text-sm font-black tracking-widest text-gold uppercase">Game over</p>
-							<p class="font-mono text-2xl font-black text-gold">{view.score.score}</p>
+							<p class="font-mono text-2xl font-black text-gold">
+								<span class="font-sans text-sm uppercase">Score</span>
+								{view.score.score}
+							</p>
 							{#if finalBonus > 0}
 								<p class="text-xs opacity-80">
 									Includes +{formatNumber(finalBonus)} for an unfinished chain
@@ -1097,7 +1141,8 @@
 
 			{#if showScores}
 				<HighScores
-					highlightRank={view.over ? savedRank : null}
+					highlightId={view.over ? savedId : null}
+					startLimit={view.over && (savedRank ?? 0) > 10 ? 100 : 10}
 					closeLabel={started ? 'Back' : 'Main menu'}
 					onClose={() => (showScores = false)}
 				/>
