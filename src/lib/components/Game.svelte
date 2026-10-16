@@ -864,7 +864,7 @@
 								<div class="my-3 flex w-full max-w-56 flex-col gap-2">
 									<button
 										type="button"
-										class="min-h-12 w-full rounded bg-gold px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
+										class="relative min-h-12 w-full rounded bg-gold px-4 text-lg font-black tracking-wide text-slate-900 uppercase"
 										aria-keyshortcuts="Enter"
 										onclick={start}
 									>

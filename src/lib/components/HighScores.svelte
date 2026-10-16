@@ -64,6 +64,8 @@
 	let saveError = $state('');
 	let savedId = $state<number | null>(untrack(() => highlightId));
 	let turnstileBox: HTMLDivElement | undefined = $state();
+	/** Only say "Loading…" if loading takes a while, to avoid a flicker. */
+	let slow = $state(false);
 
 	/** Where a score would go: after every score that is higher or equal (earlier ties come first). */
 	const rankFor = (list: Entry[], score: number) =>
@@ -159,6 +161,8 @@
 			// Storage unavailable: start with empty initials.
 		}
 		void load();
+		const timer = setTimeout(() => (slow = true), 500);
+		return () => clearTimeout(timer);
 	});
 </script>
 
@@ -168,19 +172,26 @@
 	aria-labelledby="high-scores-title"
 >
 	<div class="flex min-h-full flex-col items-center justify-center gap-3 p-3">
-		<h2 id="high-scores-title" class="text-xl font-black tracking-wide text-gold uppercase">
-			{entering ? 'New high score!' : `Top ${limit} scores`}
-		</h2>
-		{#if entering}
-			<p class="text-sm">Enter your initials</p>
-		{:else if newScore && savedId === null && scores}
-			<p class="text-sm">Not in the top 100 this time. Keep playing!</p>
-		{/if}
+		<!-- The title stays at the top while the table scrolls. Hidden until the scores arrive. -->
+		<div class="sticky top-0 z-10 w-full bg-slate-900 pt-1 pb-2 text-center">
+			{#if scores !== null || error || slow}
+				<h2 id="high-scores-title" class="text-xl font-black tracking-wide text-gold uppercase">
+					{entering ? 'New high score!' : `Top ${limit} scores`}
+				</h2>
+				{#if entering}
+					<p class="text-sm">Enter your initials</p>
+				{:else if newScore && savedId === null && scores}
+					<p class="text-sm">Not in the top 100 this time. Keep playing!</p>
+				{/if}
+			{/if}
+		</div>
 
 		{#if error}
 			<p>{error}</p>
 		{:else if scores === null}
-			<p>Loading…</p>
+			{#if slow}
+				<p>Loading…</p>
+			{/if}
 		{:else if rows.length === 0}
 			<p>No scores yet. Be the first!</p>
 		{:else}
@@ -229,45 +240,48 @@
 			</table>
 		{/if}
 
-		{#if saveError}
-			<p class="text-sm text-uracil" role="alert">{saveError}</p>
-		{/if}
-		<!-- Turnstile's invisible check runs here; nothing is shown. -->
-		<div bind:this={turnstileBox}></div>
-
-		<div class="flex w-full max-w-72 gap-2">
-			{#if entering}
-				<button
-					type="submit"
-					form="initials-form"
-					class="min-h-11 flex-1 rounded bg-gold px-2 text-sm font-semibold tracking-wide text-slate-900 uppercase disabled:opacity-50"
-					disabled={saving}
-				>
-					{saving ? 'Saving…' : 'Save'}
-				</button>
-				<button
-					type="button"
-					class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-					onclick={onClose}
-				>
-					Skip
-				</button>
-			{:else}
-				<button
-					type="button"
-					class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-					onclick={() => (limit = limit === 10 ? 100 : 10)}
-				>
-					Top {limit === 10 ? 100 : 10}
-				</button>
-				<button
-					type="button"
-					class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-					onclick={onClose}
-				>
-					{closeLabel}
-				</button>
+		<!-- The buttons stay at the bottom while the table scrolls. -->
+		<div class="sticky bottom-0 z-10 w-full bg-slate-900 py-2">
+			{#if saveError}
+				<p class="mb-2 text-center text-sm text-uracil" role="alert">{saveError}</p>
 			{/if}
+			<!-- Turnstile's invisible check runs here; nothing is shown. -->
+			<div bind:this={turnstileBox}></div>
+
+			<div class="mx-auto flex w-full max-w-72 gap-2">
+				{#if entering}
+					<button
+						type="submit"
+						form="initials-form"
+						class="min-h-11 flex-1 rounded bg-gold px-2 text-sm font-semibold tracking-wide text-slate-900 uppercase disabled:opacity-50"
+						disabled={saving}
+					>
+						{saving ? 'Saving…' : 'Save'}
+					</button>
+					<button
+						type="button"
+						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
+						onclick={onClose}
+					>
+						Don't save
+					</button>
+				{:else}
+					<button
+						type="button"
+						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
+						onclick={() => (limit = limit === 10 ? 100 : 10)}
+					>
+						Top {limit === 10 ? 100 : 10}
+					</button>
+					<button
+						type="button"
+						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
+						onclick={onClose}
+					>
+						{closeLabel}
+					</button>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
