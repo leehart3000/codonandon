@@ -268,13 +268,6 @@
 		finishGame(0);
 	}
 
-	/** Switch tips on or off during a game (from the pause screen): applies straight away. */
-	function toggleTipsNow() {
-		tipsThisGame = !tipsThisGame;
-		setShowTips(tipsThisGame);
-		fitBoard();
-	}
-
 	/** From the game-over screen: go to the Instructions page. */
 	function showInstructions() {
 		goHome();
@@ -312,9 +305,13 @@
 	}
 
 	function togglePause() {
-		if (started && !over && !tip) {
-			paused = !paused;
-			confirmQuit = false;
+		if (!started || over || tip) return;
+		paused = !paused;
+		confirmQuit = false;
+		// A tips change made on the pause screen applies on resuming, so nothing moves under the pointer.
+		if (!paused && tipsThisGame !== showTips) {
+			tipsThisGame = showTips;
+			fitBoard();
 		}
 	}
 
@@ -895,7 +892,7 @@
 				<div class="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center">
 					{#key levelBanner}
 						<p
-							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-uracil uppercase"
+							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-adenine uppercase"
 							role="status"
 						>
 							Level {levelBanner}
@@ -1023,7 +1020,12 @@
 									</a>
 									· Version {version}
 								</p>
-								<p class="text-xs opacity-60">© {APP.copyrightYear} {APP.author}</p>
+								<p class="text-xs opacity-60">
+									© {APP.copyrightYear}
+									<a href={APP.authorUrl} target="_blank" rel="noopener noreferrer">
+										{APP.author}<span class="sr-only"> (opens in a new tab)</span>
+									</a>
+								</p>
 							{/if}
 						</div>
 					</div>
@@ -1172,10 +1174,10 @@
 							{@render menuButton('Yes, end it', endGame)}
 						</div>
 					{:else}
-						<p class="text-xl font-bold text-gold">Paused</p>
-						<div class="flex flex-col items-start">
+						<h2 class="text-2xl font-black tracking-widest text-uracil uppercase">Paused</h2>
+						<div class="my-3 flex flex-col items-start">
 							{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
-							{@render toggle('Show tips', tipsThisGame, toggleTipsNow)}
+							{@render toggle('Show tips', showTips, () => setShowTips(!showTips))}
 						</div>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
