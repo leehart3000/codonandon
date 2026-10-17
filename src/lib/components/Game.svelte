@@ -69,12 +69,16 @@
 
 	let game = createGame({ seed: 1 });
 	let view = $state.raw(game.state);
+	/** True if the player ended the game from the pause screen. */
+	let quitted = $state(false);
+	/** The game is over: either the board filled up, or the player ended it. */
+	const over = $derived(view.over || quitted);
 	/** True once the page's code is running, so buttons work when they appear. */
 	let mounted = $state(false);
 	let started = $state(false);
 	let paused = $state(false);
 	/** Whether tip cards and the goal bar appear during the game. */
-	let showTips = $state(false);
+	let showTips = $state(true);
 	/** Whether sound effects play. On by default. */
 	let soundOn = $state(true);
 	/** Waits a moment after GAME OVER before showing the high-score table. */
@@ -125,8 +129,8 @@
 		touch ? Math.max(boardPixelWidth, Math.min(viewportWidth - 16, 420)) : boardPixelWidth
 	);
 
-	const playing = $derived(started && !paused && !tip && !view.over);
-	const chainOpen = $derived(started && !view.over && view.translation.chain !== null);
+	const playing = $derived(started && !paused && !tip && !over);
+	const chainOpen = $derived(started && !over && view.translation.chain !== null);
 
 	/** What a stop codon would bank right now, if the chain is long enough. */
 	const bankable = $derived(
@@ -138,24 +142,24 @@
 	/** An AUG is placed on the board, but its row hasn't been cleared yet. */
 	const startReady = $derived(
 		started &&
-			!view.over &&
+			!over &&
 			!chainOpen &&
 			findMarks(view.board, view.translation).some((mark) => mark.kind === 'start')
 	);
 
 	/** Where the falling piece could form a START (or, with a chain open, a STOP). */
 	const opportunities = $derived(
-		started && !view.over && view.active
+		started && !over && view.active
 			? findOpportunities(view.board, view.active.piece, view.translation)
 			: { kind: 'start' as const, cells: [], squares: [] }
 	);
 
 	/** The game-over summary: amino acids made, and one fact about codon redundancy. */
-	const aminoSummary = $derived(view.over ? summariseAminoAcids(view.stats) : []);
+	const aminoSummary = $derived(over ? summariseAminoAcids(view.stats) : []);
 	const redundancyFact = $derived(redundancyHighlight(aminoSummary));
 	/** A finished game not yet saved: handed to the high-score table, where the player adds initials. */
 	const newScore = $derived<NewScore | null>(
-		view.over && view.score.score > 0 && savedId === null
+		over && view.score.score > 0 && savedId === null
 			? {
 					score: view.score.score,
 					level: view.score.level,
@@ -208,6 +212,7 @@
 		tipsThisGame = showTips;
 		fitBoard();
 		tip = tipsThisGame ? (tipForLevel(1) ?? null) : null;
+		quitted = false;
 	}
 
 	function act(action: Action): ActionResult | null {
@@ -220,21 +225,9 @@
 
 		if (result.locked) piecesPlaced++;
 		if (result.clear) bestClear = Math.max(bestClear, result.clear.rows.length);
-		if (result.gameOver) {
-			finalBonus = result.gameOver.unfinishedPoints;
-			durationMs = Math.round(performance.now() - startedAt);
-			gameTime = durationMs;
-			// Arcade-style: GAME OVER for a moment, then the high-score table (it loads meanwhile).
-			if (game.state.score.score > 0) {
-				gameOverPause = true;
-				scoresTimer = setTimeout(() => {
-					gameOverPause = false;
-					if (started && view.over) showScores = true;
-				}, 2000);
-			}
-		}
+		if (result.gameOver) finishGame(result.gameOver.unfinishedPoints);
 
-		const levelledUp = !view.over && view.score.level > levelBefore;
+		const levelledUp = !over && view.score.level > levelBefore;
 		if (levelledUp) {
 			levelBanner = view.score.level;
 			clearTimeout(bannerTimer);
@@ -250,6 +243,42 @@
 
 		if (tipsThisGame && levelledUp) tip = tipForLevel(view.score.level) ?? null;
 		return result;
+	}
+
+	/** After any game over: record the length, then GAME OVER for a moment, then the high-score table. */
+	function finishGame(bonus: number) {
+		finalBonus = bonus;
+		durationMs = Math.round(performance.now() - startedAt);
+		gameTime = durationMs;
+		if (view.score.score > 0) {
+			gameOverPause = true;
+			scoresTimer = setTimeout(() => {
+				gameOverPause = false;
+				if (started && over) showScores = true;
+			}, 2000);
+		}
+	}
+
+	/** End the game from the pause screen: just like a game over, but no unfinished-chain bonus. */
+	function endGame() {
+		quitted = true;
+		paused = false;
+		confirmQuit = false;
+		play('over');
+		finishGame(0);
+	}
+
+	/** Switch tips on or off during a game (from the pause screen): applies straight away. */
+	function toggleTipsNow() {
+		tipsThisGame = !tipsThisGame;
+		setShowTips(tipsThisGame);
+		fitBoard();
+	}
+
+	/** From the game-over screen: go to the Instructions page. */
+	function showInstructions() {
+		goHome();
+		screen = 'instructions';
 	}
 
 	/** Remember the "show tips" choice, and resize the board (the goal bar comes and goes with it). */
@@ -283,7 +312,7 @@
 	}
 
 	function togglePause() {
-		if (started && !view.over && !tip) {
+		if (started && !over && !tip) {
 			paused = !paused;
 			confirmQuit = false;
 		}
@@ -303,6 +332,7 @@
 		showScores = false;
 		showStats = false;
 		screen = 'home';
+		quitted = false;
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -475,7 +505,7 @@
 
 	/** Pause automatically when the player switches to another tab or app. */
 	function onVisibilityChange() {
-		if (document.visibilityState === 'hidden' && started && !view.over) paused = true;
+		if (document.visibilityState === 'hidden' && started && !over) paused = true;
 		gesture = null;
 	}
 
@@ -606,9 +636,9 @@
 
 		// Restore the "show tips" choice, if this browser remembers one.
 		try {
-			showTips = localStorage.getItem(SHOW_TIPS_KEY) === 'true';
+			showTips = localStorage.getItem(SHOW_TIPS_KEY) !== 'false';
 		} catch {
-			// Storage unavailable: keep the default (tips off).
+			// Storage unavailable: keep the default (tips on).
 		}
 		fitBoard();
 
@@ -786,9 +816,11 @@
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
-			<span class="text-lg font-black tracking-tight text-gold">{APP.name}</span>
+			<span class="text-lg font-black tracking-tight text-gold"
+				>{APP.name}<span class="align-super text-[0.5em]">™</span></span
+			>
 			<span class="flex h-8 flex-1 items-center justify-center">
-				{#if started && !paused && !view.over}
+				{#if started && !paused && !over}
 					{@render pieceGrid(view.next, 7)}
 				{/if}
 			</span>
@@ -800,23 +832,21 @@
 				<span class="block font-mono font-bold">Lv {view.score.level}</span>
 				<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
 			</span>
-			{#if touch}
-				<button
-					type="button"
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-900 disabled:opacity-30"
-					onclick={togglePause}
-					disabled={!started || view.over || !!tip}
-					aria-label={paused ? 'Resume game' : 'Pause game'}
-				>
-					<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
-						{#if paused}
-							<path d="M8 5v14l11-7z" />
-						{:else}
-							<path d="M7 5h4v14H7zM13 5h4v14h-4z" />
-						{/if}
-					</svg>
-				</button>
-			{/if}
+			<button
+				type="button"
+				class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-uracil text-slate-900 disabled:opacity-30"
+				onclick={togglePause}
+				disabled={!started || over || !!tip}
+				aria-label={paused ? 'Resume game' : 'Pause game'}
+			>
+				<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+					{#if paused}
+						<path d="M8 5v14l11-7z" />
+					{:else}
+						<path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+					{/if}
+				</svg>
+			</button>
 		</div>
 
 		<!-- Goal bar: what to aim for right now. Shown with tips; fixed height, so the board never jumps. -->
@@ -825,7 +855,7 @@
 				class="flex h-11 flex-col items-center justify-center gap-1 text-center text-xs font-bold tracking-wide whitespace-nowrap uppercase"
 				style:width="{barWidth}px"
 			>
-				{#if started && !view.over}
+				{#if started && !over}
 					{#if chainOpen}
 						<p class="text-green-400">
 							Chain ×2{bankable !== null ? ` · stop now: +${formatNumber(bankable)}` : ''}
@@ -865,7 +895,7 @@
 				<div class="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center">
 					{#key levelBanner}
 						<p
-							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-gold uppercase"
+							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-uracil uppercase"
 							role="status"
 						>
 							Level {levelBanner}
@@ -965,7 +995,9 @@
 										{/if}
 									</svg>
 								</button>
-								<p class="text-3xl font-black tracking-tight text-gold">{APP.name}</p>
+								<p class="text-3xl font-black tracking-tight text-gold">
+									{APP.name}<span class="align-super text-[0.5em]">™</span>
+								</p>
 								<p class="text-xs opacity-80">
 									An educational game with falling tetrominoes and amino acids
 								</p>
@@ -991,17 +1023,18 @@
 									</a>
 									· Version {version}
 								</p>
+								<p class="text-xs opacity-60">© {APP.copyrightYear} {APP.author}</p>
 							{/if}
 						</div>
 					</div>
 				{/if}
 			{:else if tip}
 				{@render tipCard(tip, 'Continue', () => (tip = null), null)}
-			{:else if view.over && gameOverPause}
+			{:else if over && gameOverPause}
 				<div class="absolute inset-0 flex items-center justify-center bg-slate-900">
-					<h2 class="text-4xl font-black tracking-widest text-gold uppercase">Game over</h2>
+					<h2 class="text-4xl font-black tracking-widest text-uracil uppercase">Game over</h2>
 				</div>
-			{:else if view.over}
+			{:else if over}
 				<div class="absolute inset-0 overflow-y-auto bg-slate-900">
 					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
 						{#if showStats}
@@ -1073,7 +1106,7 @@
 								{@render menuButton('Back', () => (showStats = false))}
 							</div>
 						{:else}
-							<h2 class="text-3xl font-black tracking-widest text-gold uppercase">Game over</h2>
+							<h2 class="text-3xl font-black tracking-widest text-uracil uppercase">Game over</h2>
 							<p class="font-mono text-2xl font-black text-gold">Score {view.score.score}</p>
 							{#if finalBonus > 0}
 								<p class="text-xs opacity-80">
@@ -1113,6 +1146,9 @@
 								{/if}
 								{@render menuButton('Stats', () => (showStats = true))}
 								{@render menuButton('High scores', () => (showScores = true))}
+								{#if view.stats.chains === 0}
+									{@render menuButton('Instructions', showInstructions)}
+								{/if}
 								{@render menuButton('Main menu', goHome)}
 							</div>
 						{/if}
@@ -1123,8 +1159,8 @@
 					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-4 text-center"
 				>
 					{#if confirmQuit}
-						<p class="text-lg font-bold text-gold">Quit this game?</p>
-						<p class="text-sm">Your score won't be saved.</p>
+						<p class="text-lg font-bold text-gold">End this game?</p>
+						<p class="text-sm">You'll see your score and stats.</p>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
@@ -1133,10 +1169,14 @@
 							>
 								Keep playing
 							</button>
-							{@render menuButton('Quit', goHome)}
+							{@render menuButton('Yes, end it', endGame)}
 						</div>
 					{:else}
 						<p class="text-xl font-bold text-gold">Paused</p>
+						<div class="flex flex-col items-start">
+							{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
+							{@render toggle('Show tips', tipsThisGame, toggleTipsNow)}
+						</div>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
 								type="button"
@@ -1145,7 +1185,7 @@
 							>
 								Resume
 							</button>
-							{@render menuButton('Quit game', () => (confirmQuit = true))}
+							{@render menuButton('End game', () => (confirmQuit = true))}
 						</div>
 					{/if}
 				</div>
@@ -1153,9 +1193,9 @@
 
 			{#if showScores}
 				<HighScores
-					newScore={view.over ? newScore : null}
-					highlightId={view.over ? savedId : null}
-					startLimit={view.over && (savedRank ?? 0) > 10 ? 100 : 10}
+					newScore={over ? newScore : null}
+					highlightId={over ? savedId : null}
+					startLimit={over && (savedRank ?? 0) > 10 ? 100 : 10}
 					closeLabel={started ? 'Back' : 'Main menu'}
 					onSaved={(id, rank) => {
 						savedId = id;
