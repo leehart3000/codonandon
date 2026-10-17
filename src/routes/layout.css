@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/orbitron';
 
 /* The base colours, named after the bases. Gold (guanine) is the accent for titles and buttons. */
 @theme {
@@ -7,6 +8,7 @@
 	--color-guanine: #e3be71;
 	--color-cytosine: #7aa8d6;
 	--color-gold: #e3be71;
+	--font-arcade: 'Orbitron Variable', ui-sans-serif, sans-serif;
 }
 
 /* Tailwind removes default link styles, so make links clearly clickable. */
@@ -92,4 +94,9 @@ body {
 	.level-pop {
 		animation: none;
 	}
+}
+
+/* Orbitron looks best heavy. For Audiowide or Bungee (one weight only), change this to 400. */
+.font-arcade {
+	font-weight: 800;
 }

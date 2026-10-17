@@ -27,6 +27,7 @@
 		unlockAudio
 	} from '#lib/audio/sound.js';
 	import { playMusic, restartMusic, setMusicEnabled, stopMusic } from '#lib/audio/music.js';
+	import CodeRain from '#lib/components/CodeRain.svelte';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -38,6 +39,7 @@
 
 	/** START glows green, STOP glows orange (banking a chain is good news). */
 	const MARK_COLOURS = { start: '#4ade80', stop: '#fb923c' } as const;
+
 	/** Opportunities: cyan for forming a START, orange for forming a STOP. */
 	const OPPORTUNITY_COLOURS = { start: '#22d3ee', stop: '#fb923c' } as const;
 
@@ -304,18 +306,6 @@
 		}
 	}
 
-	/** Turn sound effects on or off, and remember the choice. */
-	function setSound(value: boolean) {
-		soundOn = value;
-		setSoundEnabled(value);
-		if (value) unlockAudio();
-		try {
-			localStorage.setItem(SOUND_KEY, String(value));
-		} catch {
-			// Not remembered; that's fine.
-		}
-	}
-
 	/** Remember a setting in this browser. */
 	function remember(key: string, value: string) {
 		try {
@@ -325,23 +315,42 @@
 		}
 	}
 
+	/** Turn sound effects on or off, and remember the choice. Switching on at volume 0 sets 50%. */
+	function setSound(value: boolean) {
+		soundOn = value;
+		setSoundEnabled(value);
+		if (value) {
+			unlockAudio();
+			if (soundVolume === 0) setSoundLevel(50);
+		}
+		remember(SOUND_KEY, String(value));
+	}
+
+	/** Turn music on or off, and remember the choice. Switching on at volume 0 sets 50%. */
 	function setMusic(value: boolean) {
 		musicOn = value;
 		setMusicEnabled(value);
-		if (value) unlockAudio();
+		if (value) {
+			unlockAudio();
+			if (musicVolume === 0) setMusicLevel(50);
+		}
 		remember(MUSIC_KEY, String(value));
 	}
 
+	/** Sound effects volume (0 to 100). Sliding to 0 switches sound off. */
 	function setSoundLevel(value: number) {
 		soundVolume = value;
 		setSoundVolume(value / 100);
 		remember(SOUND_VOLUME_KEY, String(value));
+		if (value === 0 && soundOn) setSound(false);
 	}
 
+	/** Music volume (0 to 100). Sliding to 0 switches music off. */
 	function setMusicLevel(value: number) {
 		musicVolume = value;
 		setMusicVolume(value / 100);
 		remember(MUSIC_VOLUME_KEY, String(value));
+		if (value === 0 && musicOn) setMusic(false);
 	}
 
 	/** A stored number from 0 to 100, or the default if there isn't a valid one. */
@@ -788,15 +797,23 @@
 	<div
 		class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900 p-3"
 	>
+		{#if level === null}
+			<div class="pointer-events-none absolute inset-x-0 top-0">
+				<CodeRain height={64} />
+			</div>
+		{/if}
 		{#if level !== null}
-			<p class="text-2xl font-black tracking-widest text-adenine uppercase" role="status">
+			<p
+				class="relative font-arcade text-2xl font-black tracking-widest text-adenine uppercase"
+				role="status"
+			>
 				Level {level}
 			</p>
 		{/if}
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
-			class="max-h-full overflow-y-auto rounded-lg border-2 border-gold bg-slate-950 p-4 text-adenine"
+			class="relative max-h-full overflow-y-auto rounded-lg border-2 border-gold bg-slate-950 p-4 text-adenine"
 		>
 			<p class="text-xs font-bold tracking-wide uppercase opacity-70">
 				Tip {TIPS.findIndex((t) => t.level === card.level) + 1} of {TIPS.length}
@@ -941,7 +958,7 @@
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
-			<span class="text-lg font-black tracking-tight text-gold"
+			<span class="font-arcade text-base tracking-wide text-gold uppercase"
 				>{APP.name}<span class="align-super text-[0.5em]">™</span></span
 			>
 			<span class="flex h-8 flex-1 items-center justify-center">
@@ -1020,7 +1037,7 @@
 				<div class="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center">
 					{#key levelBanner}
 						<p
-							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-adenine uppercase"
+							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 font-arcade text-2xl text-adenine uppercase"
 							role="status"
 						>
 							Level {levelBanner}
@@ -1040,12 +1057,18 @@
 						null
 					)}
 				{:else}
-					<div class="absolute inset-0 overflow-y-auto bg-slate-900/90">
-						<div class="flex min-h-full flex-col items-center justify-center gap-3 p-4 text-center">
+					<div class="absolute inset-0 overflow-y-auto bg-slate-900">
+						<!-- Genetic-code rain across the top of the menu screens. -->
+						<div class="pointer-events-none absolute inset-x-0 top-0 z-0 h-16">
+							<CodeRain height={64} />
+						</div>
+						<div
+							class="relative z-10 flex min-h-full flex-col items-center justify-center gap-3 p-4 pt-16 text-center"
+						>
 							{#if !mounted}
 								<p>Loading…</p>
 							{:else if screen === 'instructions'}
-								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Instructions</h2>
+								<h2 class="font-arcade text-base text-gold uppercase">Instructions</h2>
 								<p class="text-sm">
 									Clear rows to score. Form start and stop codons to build chains of amino acids,
 									for bonus points.
@@ -1084,7 +1107,7 @@
 									{@render menuButton('Main menu', () => (screen = 'home'))}
 								</div>
 							{:else if screen === 'settings'}
-								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Settings</h2>
+								<h2 class="font-arcade text-base text-gold uppercase">Settings</h2>
 								<div class="flex w-full max-w-64 flex-col items-start">
 									{@render audioControl(
 										'Sound',
@@ -1108,12 +1131,12 @@
 							{:else}
 								<button
 									type="button"
-									class="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-cytosine hover:bg-cytosine/10"
+									class="absolute top-2 right-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-gold text-slate-900"
 									aria-label="Sound"
 									aria-pressed={soundOn}
 									onclick={() => setSound(!soundOn)}
 								>
-									<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+									<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
 										<path d="M4 9v6h4l5 4V5L8 9H4z" />
 										{#if soundOn}
 											<path
@@ -1136,14 +1159,14 @@
 								</button>
 								<button
 									type="button"
-									class="absolute top-2 right-14 flex h-11 w-11 items-center justify-center rounded-full text-cytosine hover:bg-cytosine/10"
+									class="absolute top-2 right-13 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-gold text-slate-900"
 									aria-label="Music"
 									aria-pressed={musicOn}
 									onclick={() => setMusic(!musicOn)}
 								>
 									<svg
 										viewBox="0 0 24 24"
-										class="h-6 w-6"
+										class="h-5 w-5"
 										fill="none"
 										stroke="currentColor"
 										stroke-width="2"
@@ -1158,8 +1181,8 @@
 										{/if}
 									</svg>
 								</button>
-								<p class="text-3xl font-black tracking-tight text-gold">
-									{APP.name}<span class="align-super text-[0.5em]">™</span>
+								<p class="font-arcade text-3xl tracking-wide text-gold uppercase">
+									{APP.name}<span class="align-super text-[0.4em]">™</span>
 								</p>
 								<p class="text-xs opacity-80">
 									An educational game with falling tetrominoes and amino acids
@@ -1200,13 +1223,13 @@
 				{@render tipCard(tip, 'Continue', () => (tip = null), null, view.score.level)}
 			{:else if over && gameOverPause}
 				<div class="absolute inset-0 flex items-center justify-center bg-slate-900">
-					<h2 class="text-4xl font-black tracking-widest text-uracil uppercase">Game over</h2>
+					<h2 class="font-arcade text-2xl leading-normal text-uracil uppercase">Game over</h2>
 				</div>
 			{:else if over}
 				<div class="absolute inset-0 overflow-y-auto bg-slate-900">
 					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
 						{#if showStats}
-							<h2 class="mb-2 text-lg font-black tracking-wide text-gold uppercase">Stats</h2>
+							<h2 class="mb-2 font-arcade text-base text-gold uppercase">Stats</h2>
 
 							<dl class="grid w-full grid-cols-3 gap-1 text-xs">
 								<div>
@@ -1274,7 +1297,7 @@
 								{@render menuButton('Back', () => (showStats = false))}
 							</div>
 						{:else}
-							<h2 class="text-3xl font-black tracking-widest text-uracil uppercase">Game over</h2>
+							<h2 class="font-arcade text-2xl leading-normal text-uracil uppercase">Game over</h2>
 							<p class="font-mono text-2xl font-black text-gold">Score {view.score.score}</p>
 							{#if finalBonus > 0}
 								<p class="text-xs opacity-80">
@@ -1327,7 +1350,7 @@
 					class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-4 text-center"
 				>
 					{#if confirmQuit}
-						<p class="text-lg font-bold text-gold">End this game?</p>
+						<p class="text-lg font-bold text-uracil">End this game?</p>
 						<p class="text-sm">You'll see your score and stats.</p>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
@@ -1340,7 +1363,7 @@
 							{@render menuButton('Yes, end it', endGame)}
 						</div>
 					{:else}
-						<h2 class="text-2xl font-black tracking-widest text-uracil uppercase">Paused</h2>
+						<h2 class="font-arcade text-2xl text-uracil uppercase">Paused</h2>
 						<div class="my-3 flex w-full max-w-64 flex-col items-start">
 							{@render audioControl(
 								'Sound',

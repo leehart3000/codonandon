@@ -176,7 +176,10 @@
 		<!-- The title stays at the top while the table scrolls. Hidden until the scores arrive. -->
 		<div class="sticky top-0 z-10 w-full bg-slate-900 pt-1 pb-2 text-center">
 			{#if scores !== null || error || slow}
-				<h2 id="high-scores-title" class="text-xl font-black tracking-wide text-gold uppercase">
+				<h2
+					id="high-scores-title"
+					class="font-arcade text-base leading-relaxed text-gold uppercase"
+				>
 					{entering ? 'New high score!' : `Top ${limit} scores`}
 				</h2>
 				{#if entering}
