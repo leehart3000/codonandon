@@ -1,6 +1,6 @@
 /** The game's sound effects, generated in the browser (Web Audio), chiptune-style. */
 export type Sound =
-	'move' | 'turn' | 'land' | 'drop' | 'clear' | 'chain' | 'bank' | 'level' | 'over';
+	'move' | 'turn' | 'land' | 'drop' | 'clear' | 'chain' | 'bank' | 'level' | 'over' | 'select';
 
 /** Musical notes used below, in hertz. */
 const NOTE = {
@@ -12,6 +12,7 @@ const NOTE = {
 	C5: 523.25,
 	E5: 659.25,
 	G5: 783.99,
+	A5: 880,
 	B5: 987.77,
 	C6: 1046.5,
 	E6: 1318.51
@@ -130,6 +131,10 @@ export function play(sound: Sound, rows = 1) {
 			[NOTE.G4, NOTE.F4, NOTE.Eb4, NOTE.C4].forEach((note, i) =>
 				tone(note, i * 0.2, 0.28, { type: 'triangle', volume: 0.1 })
 			);
+			break;
+		case 'select':
+			tone(NOTE.E5, 0, 0.04, { volume: 0.03 });
+			tone(NOTE.A5, 0.04, 0.06, { volume: 0.03 });
 			break;
 	}
 }

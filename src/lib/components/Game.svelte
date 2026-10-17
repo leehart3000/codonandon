@@ -99,6 +99,8 @@
 	let musicVolume = $state(50);
 	/** Whether tips were on at any point in this game: recorded with a saved score. */
 	let tipsUsed = $state(false);
+	/** True once the player has pressed something: browsers only allow sound after that. */
+	let audioReady = $state(false);
 	/** Waits a moment after GAME OVER before showing the high-score table. */
 	let scoresTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The "LEVEL n" pop-up on the board, and its timer. */
@@ -206,9 +208,18 @@
 		return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 	};
 
+	/** A button press: allows sound from now on, and plays the "select" blip. */
+	function click() {
+		unlockAudio();
+		audioReady = true;
+		play('select');
+	}
+
 	/** Start a new game with a fresh seed, opening with the first tip if tips are on. */
 	function start() {
 		unlockAudio();
+		audioReady = true;
+		play('select');
 		clearTimeout(scoresTimer);
 		clearTimeout(bannerTimer);
 		levelBanner = null;
@@ -321,6 +332,7 @@
 		setSoundEnabled(value);
 		if (value) {
 			unlockAudio();
+			audioReady = true;
 			if (soundVolume === 0) setSoundLevel(50);
 		}
 		remember(SOUND_KEY, String(value));
@@ -332,6 +344,7 @@
 		setMusicEnabled(value);
 		if (value) {
 			unlockAudio();
+			audioReady = true;
 			if (musicVolume === 0) setMusicLevel(50);
 		}
 		remember(MUSIC_KEY, String(value));
@@ -693,10 +706,12 @@
 		};
 	});
 
-	// Music plays only while actually playing (not paused, on a tip card, or after game over),
-	// and speeds up with the level.
+	// Music: the calm version on the menu screens, the full version while playing (faster with
+	// each level), and silence when paused or after game over. Only after the first button press.
 	$effect(() => {
-		if (playing && musicOn) playMusic(view.score.level);
+		if (!musicOn || !audioReady) stopMusic();
+		else if (playing) playMusic(view.score.level, 'game');
+		else if (!started) playMusic(1, 'menu');
 		else stopMusic();
 	});
 
@@ -852,7 +867,10 @@
 	<button
 		type="button"
 		class="min-h-11 w-full rounded border-2 border-gold px-4 font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-		{onclick}
+		onclick={() => {
+			click();
+			onclick();
+		}}
 	>
 		{label}
 	</button>
@@ -864,7 +882,10 @@
 		role="switch"
 		aria-checked={on}
 		class="flex min-h-11 items-center gap-3 text-sm"
-		onclick={onToggle}
+		onclick={() => {
+			click();
+			onToggle();
+		}}
 	>
 		<span
 			class="relative h-7 w-12 shrink-0 rounded-full transition-colors {on
@@ -958,7 +979,7 @@
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
-			<span class="font-arcade text-base tracking-wide text-gold uppercase"
+			<span class="font-arcade text-sm tracking-wide text-gold uppercase sm:text-base"
 				>{APP.name}<span class="align-super text-[0.5em]">™</span></span
 			>
 			<span class="flex h-8 flex-1 items-center justify-center">
@@ -966,11 +987,11 @@
 					{@render pieceGrid(view.next, 7)}
 				{/if}
 			</span>
-			<span class="text-right leading-tight">
+			<span class="text-right leading-tight whitespace-nowrap">
 				<span class="block font-mono font-bold">Score {view.score.score}</span>
 				<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
 			</span>
-			<span class="text-right leading-tight">
+			<span class="text-right leading-tight whitespace-nowrap">
 				<span class="block font-mono font-bold">Lv {view.score.level}</span>
 				<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
 			</span>
@@ -1358,7 +1379,10 @@
 							<button
 								type="button"
 								class="min-h-11 rounded bg-gold px-6 font-semibold tracking-wide text-slate-900 uppercase"
-								onclick={() => (confirmQuit = false)}
+								onclick={() => {
+									click();
+									confirmQuit = false;
+								}}
 							>
 								Keep playing
 							</button>
@@ -1387,7 +1411,10 @@
 							<button
 								type="button"
 								class="min-h-11 rounded bg-gold px-6 font-semibold tracking-wide text-slate-900 uppercase"
-								onclick={togglePause}
+								onclick={() => {
+									click();
+									togglePause();
+								}}
 							>
 								Resume
 							</button>

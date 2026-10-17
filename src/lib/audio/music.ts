@@ -7,11 +7,16 @@ const STEPS = buildSteps();
 const LOOKAHEAD = 0.12;
 const INTERVAL_MS = 25;
 
+/** The menu screens play a calmer version: slower, and without drums. */
+export type MusicMode = 'menu' | 'game';
+const MENU_TEMPO = 96;
+
 let timer: ReturnType<typeof setInterval> | undefined;
 let enabled = true;
 let step = 0;
 let nextTime = 0;
 let tempo = 120;
+let mode: MusicMode = 'game';
 let noise: AudioBuffer | null = null;
 
 /** Random "noise", for the snare and hi-hat, as on 8-bit machines. */
@@ -108,9 +113,9 @@ function schedule() {
 				0.12
 			);
 		}
-		if (current?.kick) drum(context, output, nextTime, 'kick');
-		if (current?.snare) drum(context, output, nextTime, 'snare');
-		if (current?.hat) drum(context, output, nextTime, 'hat');
+		if (mode === 'game' && current?.kick) drum(context, output, nextTime, 'kick');
+		if (mode === 'game' && current?.snare) drum(context, output, nextTime, 'snare');
+		if (mode === 'game' && current?.hat) drum(context, output, nextTime, 'hat');
 		nextTime += eighth;
 		step = (step + 1) % STEPS.length;
 	}
@@ -121,9 +126,15 @@ export function setMusicEnabled(on: boolean) {
 	if (!on) stopMusic();
 }
 
-/** Play (or keep playing) at the tempo for this level. Safe to call often. */
-export function playMusic(level: number) {
-	tempo = tempoFor(level);
+/** Play (or keep playing) the menu or game version. Safe to call often. */
+export function playMusic(level: number, newMode: MusicMode = 'game') {
+	// Switching between menu and game music starts the tune from the top.
+	if (newMode !== mode) {
+		mode = newMode;
+		step = 0;
+		nextTime = 0;
+	}
+	tempo = mode === 'menu' ? MENU_TEMPO : tempoFor(level);
 	if (!enabled || timer) return;
 	nextTime = 0;
 	schedule();

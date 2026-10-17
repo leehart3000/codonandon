@@ -100,3 +100,10 @@ body {
 .font-arcade {
 	font-weight: 800;
 }
+
+/* Installed on a phone: keep clear of the system's fade under the status bar. */
+@media (display-mode: standalone) {
+	body {
+		padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+	}
+}

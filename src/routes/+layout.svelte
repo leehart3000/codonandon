@@ -7,9 +7,8 @@
 	let { children }: LayoutProps = $props();
 </script>
 
+<!-- Each page sets its own title and description. -->
 <svelte:head>
-	<title>{APP.name}</title>
-	<meta name="description" content={APP.description} />
 	<meta name="theme-color" content={APP.themeColor} />
 </svelte:head>
 
