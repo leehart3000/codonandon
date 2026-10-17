@@ -12,6 +12,6 @@
 	<meta name="theme-color" content={APP.themeColor} />
 </svelte:head>
 
-{@render children()}
-
 <UpdateNotice />
+
+{@render children()}

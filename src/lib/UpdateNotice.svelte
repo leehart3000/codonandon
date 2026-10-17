@@ -62,7 +62,7 @@
 {#if updateReady && !playState.playing}
 	<div
 		role="status"
-		class="fixed inset-x-0 top-0 flex items-center justify-center gap-3 bg-slate-800 p-3 text-white"
+		class="sticky top-0 z-50 flex items-center justify-center gap-3 bg-slate-800 p-3 text-white"
 	>
 		<span>A new version is available.</span>
 		<button
