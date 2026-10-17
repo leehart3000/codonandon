@@ -414,6 +414,9 @@
 	function onKeydown(event: KeyboardEvent) {
 		if (!mounted) return;
 
+		// Any key press may restart sound after an interruption.
+		if (audioReady) unlockAudio();
+
 		// Typing in a box (such as initials) goes to the box, not the game.
 		if (event.target instanceof HTMLInputElement) return;
 
@@ -490,6 +493,9 @@
 	} | null = null;
 
 	function onPointerDown(event: PointerEvent) {
+		// Any tap may restart sound after an interruption.
+		if (audioReady) unlockAudio();
+
 		const target = event.target as Element;
 		if (target.closest('button, a, [role="dialog"]')) return;
 
@@ -848,7 +854,10 @@
 				<button
 					type="button"
 					class="min-h-11 rounded bg-gold px-4 font-semibold tracking-wide text-slate-900 uppercase"
-					onclick={onContinue}
+					onclick={() => {
+						click();
+						onContinue();
+					}}
 				>
 					{buttonLabel}
 				</button>
@@ -998,7 +1007,10 @@
 			<button
 				type="button"
 				class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-uracil text-slate-900 disabled:opacity-30"
-				onclick={togglePause}
+				onclick={() => {
+					click();
+					togglePause();
+				}}
 				disabled={!started || over || !!tip}
 				aria-label={paused ? 'Resume game' : 'Pause game'}
 			>

@@ -16,6 +16,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { APP } from '#lib/config.js';
 	import { getTurnstileToken } from '#lib/turnstile-client.js';
+	import { play, unlockAudio } from '#lib/audio/sound.js';
 
 	/** One row of the high-score table, as the API returns it. */
 	interface Entry {
@@ -155,6 +156,12 @@
 		node.select();
 	}
 
+	/** A button press: the "select" blip (respects the Sound setting). */
+	function click() {
+		unlockAudio();
+		play('select');
+	}
+
 	onMount(() => {
 		try {
 			initials = localStorage.getItem(INITIALS_KEY) ?? '';
@@ -270,7 +277,10 @@
 					<button
 						type="button"
 						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-						onclick={onClose}
+						onclick={() => {
+							click();
+							onClose();
+						}}
 					>
 						Don't save
 					</button>
@@ -278,14 +288,20 @@
 					<button
 						type="button"
 						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-						onclick={() => (limit = limit === 10 ? 100 : 10)}
+						onclick={() => {
+							click();
+							limit = limit === 10 ? 100 : 10;
+						}}
 					>
 						Top {limit === 10 ? 100 : 10}
 					</button>
 					<button
 						type="button"
 						class="min-h-11 flex-1 rounded border-2 border-gold px-2 text-sm font-semibold tracking-wide text-gold uppercase hover:bg-gold/10"
-						onclick={onClose}
+						onclick={() => {
+							click();
+							onClose();
+						}}
 					>
 						{closeLabel}
 					</button>

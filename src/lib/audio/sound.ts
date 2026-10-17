@@ -57,7 +57,9 @@ export function unlockAudio() {
 		musicGain.gain.value = musicVolume;
 		musicGain.connect(context.destination);
 	}
-	if (context.state === 'suspended') void context.resume();
+	// Restart after any stop: "suspended" (not yet started), or "interrupted" (iPhone: a call,
+	// Siri, or switching Airplane Mode can take over the audio until the next tap).
+	if (context.state !== 'running') void context.resume();
 	// On iPhones: respect the silent switch, and don't stop the player's own music.
 	const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
 	if (session) session.type = 'ambient';
