@@ -782,9 +782,17 @@
 	card: Tip,
 	buttonLabel: string,
 	onContinue: () => void,
-	onBack: (() => void) | null
+	onBack: (() => void) | null,
+	level: number | null
 )}
-	<div class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900 p-3">
+	<div
+		class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900 p-3"
+	>
+		{#if level !== null}
+			<p class="text-2xl font-black tracking-widest text-adenine uppercase" role="status">
+				Level {level}
+			</p>
+		{/if}
 		<div
 			role="dialog"
 			aria-labelledby="tip-title"
@@ -856,25 +864,27 @@
 	</button>
 {/snippet}
 
-{#snippet volume(
+{#snippet audioControl(
 	label: string,
-	value: number,
-	onChange: (value: number) => void,
-	disabled: boolean
+	on: boolean,
+	onToggle: () => void,
+	level: number,
+	onLevel: (value: number) => void
 )}
-	<label class="flex min-h-11 w-full items-center gap-3 text-sm">
-		<span class="w-24 text-left">{label}</span>
+	<div class="flex w-full items-center gap-3">
+		{@render toggle(label, on, onToggle)}
 		<input
 			type="range"
 			min="0"
 			max="100"
 			step="5"
-			{value}
-			{disabled}
-			class="flex-1 accent-adenine disabled:opacity-40"
-			oninput={(event) => onChange(Number(event.currentTarget.value))}
+			value={level}
+			disabled={!on}
+			aria-label="{label} volume"
+			class="ml-auto w-24 accent-adenine disabled:opacity-40"
+			oninput={(event) => onLevel(Number(event.currentTarget.value))}
 		/>
-	</label>
+	</div>
 {/snippet}
 
 {#snippet pieceGrid(piece: Piece, size: number)}
@@ -1006,7 +1016,8 @@
 						card,
 						howTo + 1 < TIPS.length ? 'Next' : 'Done',
 						nextHowTo,
-						() => (howTo = null)
+						() => (howTo = null),
+						null
 					)}
 				{:else}
 					<div class="absolute inset-0 overflow-y-auto bg-slate-900/90">
@@ -1055,10 +1066,20 @@
 							{:else if screen === 'settings'}
 								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Settings</h2>
 								<div class="flex w-full max-w-64 flex-col items-start">
-									{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
-									{@render volume('Sound volume', soundVolume, setSoundLevel, !soundOn)}
-									{@render toggle('Music', musicOn, () => setMusic(!musicOn))}
-									{@render volume('Music volume', musicVolume, setMusicLevel, !musicOn)}
+									{@render audioControl(
+										'Sound',
+										soundOn,
+										() => setSound(!soundOn),
+										soundVolume,
+										setSoundLevel
+									)}
+									{@render audioControl(
+										'Music',
+										musicOn,
+										() => setMusic(!musicOn),
+										musicVolume,
+										setMusicLevel
+									)}
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
 								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
@@ -1156,7 +1177,7 @@
 					</div>
 				{/if}
 			{:else if tip}
-				{@render tipCard(tip, 'Continue', () => (tip = null), null)}
+				{@render tipCard(tip, 'Continue', () => (tip = null), null, view.score.level)}
 			{:else if over && gameOverPause}
 				<div class="absolute inset-0 flex items-center justify-center bg-slate-900">
 					<h2 class="text-4xl font-black tracking-widest text-uracil uppercase">Game over</h2>
@@ -1300,9 +1321,21 @@
 						</div>
 					{:else}
 						<h2 class="text-2xl font-black tracking-widest text-uracil uppercase">Paused</h2>
-						<div class="my-3 flex flex-col items-start">
-							{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
-							{@render toggle('Music', musicOn, () => setMusic(!musicOn))}
+						<div class="my-3 flex w-full max-w-64 flex-col items-start">
+							{@render audioControl(
+								'Sound',
+								soundOn,
+								() => setSound(!soundOn),
+								soundVolume,
+								setSoundLevel
+							)}
+							{@render audioControl(
+								'Music',
+								musicOn,
+								() => setMusic(!musicOn),
+								musicVolume,
+								setMusicLevel
+							)}
 							{@render toggle('Show tips', showTips, () => setShowTips(!showTips))}
 						</div>
 						<div class="flex w-full max-w-56 flex-col gap-2">
