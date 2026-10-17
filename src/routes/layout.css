@@ -62,3 +62,34 @@ body {
 	background-color: #020617;
 	color: #f1f5f9;
 }
+
+/* The "LEVEL n" pop-up on the board. */
+@keyframes level-pop {
+	0% {
+		transform: scale(0.5);
+		opacity: 0;
+	}
+	15% {
+		transform: scale(1.15);
+		opacity: 1;
+	}
+	30% {
+		transform: scale(1);
+	}
+	80% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+.level-pop {
+	animation: level-pop 1.5s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.level-pop {
+		animation: none;
+	}
+}

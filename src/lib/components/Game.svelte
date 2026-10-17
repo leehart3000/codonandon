@@ -79,6 +79,11 @@
 	let soundOn = $state(true);
 	/** Waits a moment after GAME OVER before showing the high-score table. */
 	let scoresTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The "LEVEL n" pop-up on the board, and its timer. */
+	let levelBanner = $state<number | null>(null);
+	let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+	/** True during the short GAME OVER pause before the high-score table. */
+	let gameOverPause = $state(false);
 	/** The tips setting for the game in progress: changes to the switch apply from the next game. */
 	let tipsThisGame = $state(true);
 	/** The tip card being shown, which pauses play until Continue. */
@@ -183,6 +188,9 @@
 	function start() {
 		unlockAudio();
 		clearTimeout(scoresTimer);
+		clearTimeout(bannerTimer);
+		levelBanner = null;
+		gameOverPause = false;
 		game = createGame({ seed: randomSeed() });
 		view = game.state;
 		paused = false;
@@ -218,13 +226,20 @@
 			gameTime = durationMs;
 			// Arcade-style: GAME OVER for a moment, then the high-score table (it loads meanwhile).
 			if (game.state.score.score > 0) {
+				gameOverPause = true;
 				scoresTimer = setTimeout(() => {
+					gameOverPause = false;
 					if (started && view.over) showScores = true;
 				}, 2000);
 			}
 		}
 
 		const levelledUp = !view.over && view.score.level > levelBefore;
+		if (levelledUp) {
+			levelBanner = view.score.level;
+			clearTimeout(bannerTimer);
+			bannerTimer = setTimeout(() => (levelBanner = null), 1500);
+		}
 		for (const cue of cuesFor(action, result, {
 			moved: !!before && !!after && (before.x !== after.x || before.y !== after.y),
 			turned: !!before && !!after && before.piece !== after.piece && !result.locked,
@@ -277,6 +292,9 @@
 	/** Leave the current game (or the game-over screen) and return to the home screen. */
 	function goHome() {
 		clearTimeout(scoresTimer);
+		clearTimeout(bannerTimer);
+		levelBanner = null;
+		gameOverPause = false;
 		started = false;
 		paused = false;
 		tip = null;
@@ -843,6 +861,18 @@
 			>
 				Game board. The score, level and next piece are shown above it.
 			</canvas>
+			{#if levelBanner !== null}
+				<div class="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center">
+					{#key levelBanner}
+						<p
+							class="level-pop inline-block rounded bg-slate-950/80 px-4 py-2 text-3xl font-black tracking-widest text-gold uppercase"
+							role="status"
+						>
+							Level {levelBanner}
+						</p>
+					{/key}
+				</div>
+			{/if}
 
 			{#if !started}
 				{@const card = howTo === null ? undefined : TIPS[howTo]}
@@ -909,7 +939,7 @@
 							{:else}
 								<button
 									type="button"
-									class="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-gold hover:bg-gold/10"
+									class="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-cytosine hover:bg-cytosine/10"
 									aria-label="Sound"
 									aria-pressed={soundOn}
 									onclick={() => setSound(!soundOn)}
@@ -967,6 +997,10 @@
 				{/if}
 			{:else if tip}
 				{@render tipCard(tip, 'Continue', () => (tip = null), null)}
+			{:else if view.over && gameOverPause}
+				<div class="absolute inset-0 flex items-center justify-center bg-slate-900">
+					<h2 class="text-4xl font-black tracking-widest text-gold uppercase">Game over</h2>
+				</div>
 			{:else if view.over}
 				<div class="absolute inset-0 overflow-y-auto bg-slate-900">
 					<div class="flex min-h-full flex-col items-center justify-center gap-2 p-3 text-center">
