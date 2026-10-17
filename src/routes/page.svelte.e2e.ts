@@ -50,3 +50,12 @@ test('ending a game shows the results, and Play again starts a fresh game', asyn
 	await expect(page.getByRole('heading', { name: 'Game over' })).toBeHidden();
 	await expect(page.getByText('Paused')).toBeHidden();
 });
+
+test('the About page explains privacy, including the Turnstile notice', async ({ page }) => {
+	await page.goto('/about');
+	await expect(page.getByRole('heading', { name: 'Privacy' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Turnstile Privacy Addendum/ })).toHaveAttribute(
+		'href',
+		'https://www.cloudflare.com/turnstile-privacy-policy/'
+	);
+});

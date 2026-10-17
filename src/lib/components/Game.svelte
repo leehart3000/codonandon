@@ -1204,6 +1204,8 @@
 									{@render menuButton('Settings', () => (screen = 'settings'))}
 								</div>
 								<p class="text-xs opacity-80">
+									<a href="/about">About & privacy</a>
+									·
 									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
 										Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
 									</a>

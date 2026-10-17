@@ -11,6 +11,8 @@ export const APP = {
 	/** For the copyright notice on the main menu. */
 	author: 'Lee Hart',
 	authorUrl: 'https://hartsoft.dev',
+	/** For privacy questions and score removal requests, shown on the About page. */
+	contactEmail: 'tetraminos@hartsoft.dev',
 	copyrightYear: 2026,
 	/** Cloudflare Turnstile site key (public). The matching secret is a Worker secret. */
 	turnstileSiteKey: '0x4AAAAAAFX5a4VULA9dZlJg',

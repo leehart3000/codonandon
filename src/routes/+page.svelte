@@ -7,6 +7,7 @@
 <header class="sr-only">
 	<h1>{APP.name}</h1>
 	<p>{APP.description}</p>
+	<a href="/about">About and privacy</a>
 </header>
 
 <Game />
