@@ -864,6 +864,25 @@
 	</button>
 {/snippet}
 
+{#snippet volumeIcon(level: number, on: boolean)}
+	<svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" aria-hidden="true">
+		<path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor" />
+		<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+			{#if !on || level === 0}
+				<path d="M16 9l5 6M21 9l-5 6" />
+			{:else}
+				<path d="M15 9.5a3.5 3.5 0 0 1 0 5" />
+				{#if level > 33}
+					<path d="M17.5 7a7 7 0 0 1 0 10" />
+				{/if}
+				{#if level > 66}
+					<path d="M20 4.5a10.5 10.5 0 0 1 0 15" />
+				{/if}
+			{/if}
+		</g>
+	</svg>
+{/snippet}
+
 {#snippet audioControl(
 	label: string,
 	on: boolean,
@@ -873,6 +892,7 @@
 )}
 	<div class="flex w-full items-center gap-3">
 		{@render toggle(label, on, onToggle)}
+		<span class="ml-auto" class:opacity-40={!on}>{@render volumeIcon(level, on)}</span>
 		<input
 			type="range"
 			min="0"
@@ -881,7 +901,7 @@
 			value={level}
 			disabled={!on}
 			aria-label="{label} volume"
-			class="ml-auto w-24 accent-adenine disabled:opacity-40"
+			class="w-24 accent-adenine disabled:opacity-40"
 			oninput={(event) => onLevel(Number(event.currentTarget.value))}
 		/>
 	</div>

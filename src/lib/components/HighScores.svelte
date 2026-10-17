@@ -96,7 +96,8 @@
 			scores = list;
 			// Bring the player's own row into view.
 			await tick();
-			document.getElementById('my-score')?.scrollIntoView({ block: 'center' });
+			// Only scrolls if the row isn't already visible (no needless scroll indicator on phones).
+			document.getElementById('my-score')?.scrollIntoView({ block: 'nearest' });
 		} catch {
 			error = navigator.onLine
 				? 'Sorry, the high scores could not be loaded.'
@@ -207,7 +208,7 @@
 				<tbody>
 					{#each rows as row, index (row.kind === 'new' ? 'new' : row.entry.id)}
 						{#if row.kind === 'new' && newScore}
-							<tr id="my-score" class="font-bold text-gold">
+							<tr id="my-score" class="scroll-my-24 font-bold text-gold">
 								<td class="px-2 text-right">{index + 1}</td>
 								<td class="px-2">
 									<form id="initials-form" onsubmit={save}>
@@ -228,7 +229,12 @@
 							</tr>
 						{:else if row.kind === 'score'}
 							{@const mine = row.entry.id === savedId}
-							<tr id={mine ? 'my-score' : undefined} class:text-gold={mine} class:font-bold={mine}>
+							<tr
+								id={mine ? 'my-score' : undefined}
+								class:text-gold={mine}
+								class:font-bold={mine}
+								class:scroll-my-24={mine}
+							>
 								<td class="px-2 text-right">{index + 1}</td>
 								<td class="px-2 whitespace-pre">{row.entry.initials}</td>
 								<td class="px-2 text-right opacity-70">{row.entry.level}</td>
