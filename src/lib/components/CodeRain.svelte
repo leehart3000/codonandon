@@ -25,7 +25,9 @@
 	const FLICKER = 1;
 	/** The menu background: clears squares, and dims everything very slightly. */
 	const BACKGROUND = '#0f172a';
-	const DIM = 'rgba(15, 23, 42, 0.04)';
+	/** How much the streams fade each update: 0 for none; higher fades faster. */
+	const DIMMING = 0.08;
+	const DIM = `rgba(15, 23, 42, ${DIMMING})`;
 	const TRAIL = '#7ec98f';
 	const HEAD = '#ecfdf5';
 
@@ -64,7 +66,8 @@
 			element.width = Math.round(width * scale);
 			element.height = Math.round(height * scale);
 			context.setTransform(scale, 0, 0, scale, 0, 0);
-			context.font = `${FONT_SIZE}px ui-monospace, monospace`;
+			// Menlo is on every Mac and iPhone, so the rain looks the same in Safari and Chrome.
+			context.font = `${FONT_SIZE}px Menlo, ui-monospace, monospace`;
 			context.textAlign = 'center';
 			context.textBaseline = 'middle';
 			streams = Array.from({ length: Math.ceil(width / COLUMN) }, newStream);
