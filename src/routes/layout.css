@@ -29,9 +29,18 @@
 }
 
 /* Leave room for the iPhone status bar, notch and home indicator. */
+:root {
+	--page-top: env(safe-area-inset-top);
+	--page-bottom: env(safe-area-inset-bottom);
+}
+
 body {
-	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-		env(safe-area-inset-left);
+	padding: var(--page-top) env(safe-area-inset-right) var(--page-bottom) env(safe-area-inset-left);
+}
+
+/* The play area fills exactly the space left inside that padding, so the page never scrolls. */
+.play-area {
+	min-height: calc(100dvh - var(--page-top) - var(--page-bottom));
 }
 
 /* No bouncing or pull-to-refresh: a missed swipe must never reload the game. */
@@ -103,7 +112,7 @@ body {
 
 /* Installed on a phone: keep clear of the system's fade under the status bar. */
 @media (display-mode: standalone) {
-	body {
-		padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+	:root {
+		--page-top: calc(env(safe-area-inset-top) + 0.75rem);
 	}
 }

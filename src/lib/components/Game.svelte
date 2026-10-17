@@ -594,7 +594,10 @@
 	/** Fit the board to the screen, leaving room for the top bar (and the goal bar, if tips are on). */
 	function fitBoard() {
 		viewportWidth = window.innerWidth;
-		const reserved = 44 + ((started ? tipsThisGame : showTips) ? 44 : 0) + 24;
+		// The page's own top and bottom spacing (status bar, home indicator) isn't board space either.
+		const style = getComputedStyle(document.body);
+		const spacing = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+		const reserved = 44 + ((started ? tipsThisGame : showTips) ? 44 : 0) + 24 + spacing;
 		const byHeight = Math.floor((window.innerHeight - reserved) / BOARD_HEIGHT);
 		const byWidth = Math.floor((window.innerWidth - 16) / BOARD_WIDTH);
 		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, byHeight, byWidth));
@@ -780,10 +783,19 @@
 		}
 		playArea?.addEventListener('touchstart', stopDefaultTouch, { passive: false });
 
+		// Turning the phone resizes the board suddenly, so pause (not on every resize:
+		// Safari's toolbar sliding in and out also resizes the page).
+		const portrait = window.matchMedia('(orientation: portrait)');
+		function onTurn() {
+			if (playing) paused = true;
+		}
+		portrait.addEventListener('change', onTurn);
+
 		return () => {
 			cancelAnimationFrame(frame);
 			playArea?.removeEventListener('touchstart', stopDefaultTouch);
 			stopMusic();
+			portrait.removeEventListener('change', onTurn);
 		};
 	});
 </script>
@@ -976,7 +988,7 @@
 <!-- The whole play area takes gestures, so a swipe beside the board still controls the piece. -->
 <div
 	bind:this={playArea}
-	class="flex min-h-dvh flex-wrap items-start justify-center gap-6 pt-1 text-adenine select-none"
+	class="play-area flex flex-wrap items-start justify-center gap-6 pt-1 text-adenine select-none"
 	style:touch-action={playing ? 'none' : 'auto'}
 	style:-webkit-touch-callout="none"
 	onpointerdown={onPointerDown}
