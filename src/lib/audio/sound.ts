@@ -18,10 +18,27 @@ const NOTE = {
 };
 
 let context: AudioContext | null = null;
+/** Volume controls: one for sound effects, one for music. */
+let soundGain: GainNode | null = null;
+let musicGain: GainNode | null = null;
+let soundVolume = 0.8;
+let musicVolume = 0.5;
 let enabled = true;
 
 export function setSoundEnabled(on: boolean) {
 	enabled = on;
+}
+
+/** Sound effects volume, from 0 to 1. */
+export function setSoundVolume(volume: number) {
+	soundVolume = volume;
+	if (soundGain) soundGain.gain.value = volume;
+}
+
+/** Music volume, from 0 to 1. */
+export function setMusicVolume(volume: number) {
+	musicVolume = volume;
+	if (musicGain) musicGain.gain.value = volume;
 }
 
 /**
@@ -30,11 +47,26 @@ export function setSoundEnabled(on: boolean) {
  */
 export function unlockAudio() {
 	if (typeof AudioContext === 'undefined') return;
-	context ??= new AudioContext();
+	if (!context) {
+		context = new AudioContext();
+		soundGain = context.createGain();
+		soundGain.gain.value = soundVolume;
+		soundGain.connect(context.destination);
+		musicGain = context.createGain();
+		musicGain.gain.value = musicVolume;
+		musicGain.connect(context.destination);
+	}
 	if (context.state === 'suspended') void context.resume();
 	// On iPhones: respect the silent switch, and don't stop the player's own music.
 	const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
 	if (session) session.type = 'ambient';
+}
+
+/** For the music player: the shared audio context and the music's volume control. */
+export function musicOutput(): { context: AudioContext; output: GainNode } | null {
+	return context && musicGain && context.state === 'running'
+		? { context, output: musicGain }
+		: null;
 }
 
 interface ToneOptions {
@@ -46,7 +78,7 @@ interface ToneOptions {
 
 /** One short tone, starting `start` seconds from now, fading out over `duration`. */
 function tone(frequency: number, start: number, duration: number, options: ToneOptions = {}) {
-	if (!context) return;
+	if (!context || !soundGain) return;
 	const { type = 'square', volume = 0.06, slideTo } = options;
 	const at = context.currentTime + start;
 	const oscillator = context.createOscillator();
@@ -56,7 +88,7 @@ function tone(frequency: number, start: number, duration: number, options: ToneO
 	if (slideTo) oscillator.frequency.exponentialRampToValueAtTime(slideTo, at + duration);
 	gain.gain.setValueAtTime(volume, at);
 	gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-	oscillator.connect(gain).connect(context.destination);
+	oscillator.connect(gain).connect(soundGain);
 	oscillator.start(at);
 	oscillator.stop(at + duration + 0.02);
 }

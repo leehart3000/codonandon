@@ -19,7 +19,14 @@
 	import { version } from '$app/env';
 	import HighScores, { type NewScore } from '#lib/components/HighScores.svelte';
 	import { cuesFor } from '#lib/audio/cues.js';
-	import { play, setSoundEnabled, unlockAudio } from '#lib/audio/sound.js';
+	import {
+		play,
+		setMusicVolume,
+		setSoundEnabled,
+		setSoundVolume,
+		unlockAudio
+	} from '#lib/audio/sound.js';
+	import { playMusic, restartMusic, setMusicEnabled, stopMusic } from '#lib/audio/music.js';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -39,6 +46,9 @@
 
 	/** Where the sound on/off choice is remembered in this browser. */
 	const SOUND_KEY = 'sound';
+	const MUSIC_KEY = 'music';
+	const SOUND_VOLUME_KEY = 'soundVolume';
+	const MUSIC_VOLUME_KEY = 'musicVolume';
 
 	/** Smallest and largest square size, in pixels. */
 	const MIN_CELL = 14;
@@ -81,6 +91,12 @@
 	let showTips = $state(true);
 	/** Whether sound effects play. On by default. */
 	let soundOn = $state(true);
+	/** Music on or off, and the two volumes (0 to 100). */
+	let musicOn = $state(true);
+	let soundVolume = $state(80);
+	let musicVolume = $state(50);
+	/** Whether tips were on at any point in this game: recorded with a saved score. */
+	let tipsUsed = $state(false);
 	/** Waits a moment after GAME OVER before showing the high-score table. */
 	let scoresTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The "LEVEL n" pop-up on the board, and its timer. */
@@ -168,7 +184,7 @@
 					longestChain: view.stats.longestChain,
 					durationMs: gameTime,
 					generatorVersion: view.generatorVersion,
-					tips: tipsThisGame
+					tips: tipsUsed
 				}
 			: null
 	);
@@ -212,6 +228,8 @@
 		tipsThisGame = showTips;
 		fitBoard();
 		tip = tipsThisGame ? (tipForLevel(1) ?? null) : null;
+		tipsUsed = tipsThisGame;
+		restartMusic();
 		quitted = false;
 	}
 
@@ -298,6 +316,44 @@
 		}
 	}
 
+	/** Remember a setting in this browser. */
+	function remember(key: string, value: string) {
+		try {
+			localStorage.setItem(key, value);
+		} catch {
+			// Not remembered; that's fine.
+		}
+	}
+
+	function setMusic(value: boolean) {
+		musicOn = value;
+		setMusicEnabled(value);
+		if (value) unlockAudio();
+		remember(MUSIC_KEY, String(value));
+	}
+
+	function setSoundLevel(value: number) {
+		soundVolume = value;
+		setSoundVolume(value / 100);
+		remember(SOUND_VOLUME_KEY, String(value));
+	}
+
+	function setMusicLevel(value: number) {
+		musicVolume = value;
+		setMusicVolume(value / 100);
+		remember(MUSIC_VOLUME_KEY, String(value));
+	}
+
+	/** A stored number from 0 to 100, or the default if there isn't a valid one. */
+	function storedLevel(key: string, fallback: number): number {
+		try {
+			const value = Number(localStorage.getItem(key) ?? fallback);
+			return Number.isFinite(value) && value >= 0 && value <= 100 ? value : fallback;
+		} catch {
+			return fallback;
+		}
+	}
+
 	/** Step through the "How to play" cards, closing after the last one. */
 	function nextHowTo() {
 		if (howTo === null) return;
@@ -311,6 +367,7 @@
 		// A tips change made on the pause screen applies on resuming, so nothing moves under the pointer.
 		if (!paused && tipsThisGame !== showTips) {
 			tipsThisGame = showTips;
+			if (tipsThisGame) tipsUsed = true;
 			fitBoard();
 		}
 	}
@@ -627,6 +684,13 @@
 		};
 	});
 
+	// Music plays only while actually playing (not paused, on a tip card, or after game over),
+	// and speeds up with the level.
+	$effect(() => {
+		if (playing && musicOn) playMusic(view.score.level);
+		else stopMusic();
+	});
+
 	onMount(() => {
 		mounted = true;
 		touch = window.matchMedia('(pointer: coarse)').matches;
@@ -646,6 +710,18 @@
 			// Storage unavailable: keep the default (sound on).
 		}
 		setSoundEnabled(soundOn);
+
+		// Restore music and volumes.
+		try {
+			musicOn = localStorage.getItem(MUSIC_KEY) !== 'false';
+		} catch {
+			// Storage unavailable: keep the default (music on).
+		}
+		setMusicEnabled(musicOn);
+		soundVolume = storedLevel(SOUND_VOLUME_KEY, 80);
+		musicVolume = storedLevel(MUSIC_VOLUME_KEY, 50);
+		setSoundVolume(soundVolume / 100);
+		setMusicVolume(musicVolume / 100);
 
 		// The automatic fall, timed by the level.
 		let last = performance.now();
@@ -677,6 +753,7 @@
 		return () => {
 			cancelAnimationFrame(frame);
 			playArea?.removeEventListener('touchstart', stopDefaultTouch);
+			stopMusic();
 		};
 	});
 </script>
@@ -777,6 +854,27 @@
 		</span>
 		{label}
 	</button>
+{/snippet}
+
+{#snippet volume(
+	label: string,
+	value: number,
+	onChange: (value: number) => void,
+	disabled: boolean
+)}
+	<label class="flex min-h-11 w-full items-center gap-3 text-sm">
+		<span class="w-24 text-left">{label}</span>
+		<input
+			type="range"
+			min="0"
+			max="100"
+			step="5"
+			{value}
+			{disabled}
+			class="flex-1 accent-adenine disabled:opacity-40"
+			oninput={(event) => onChange(Number(event.currentTarget.value))}
+		/>
+	</label>
 {/snippet}
 
 {#snippet pieceGrid(piece: Piece, size: number)}
@@ -956,8 +1054,11 @@
 								</div>
 							{:else if screen === 'settings'}
 								<h2 class="text-lg font-black tracking-wide text-gold uppercase">Settings</h2>
-								<div class="flex flex-col items-start">
+								<div class="flex w-full max-w-64 flex-col items-start">
 									{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
+									{@render volume('Sound volume', soundVolume, setSoundLevel, !soundOn)}
+									{@render toggle('Music', musicOn, () => setMusic(!musicOn))}
+									{@render volume('Music volume', musicVolume, setMusicLevel, !musicOn)}
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
 								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
@@ -989,6 +1090,30 @@
 												stroke-width="2"
 												stroke-linecap="round"
 											/>
+										{/if}
+									</svg>
+								</button>
+								<button
+									type="button"
+									class="absolute top-2 right-14 flex h-11 w-11 items-center justify-center rounded-full text-cytosine hover:bg-cytosine/10"
+									aria-label="Music"
+									aria-pressed={musicOn}
+									onclick={() => setMusic(!musicOn)}
+								>
+									<svg
+										viewBox="0 0 24 24"
+										class="h-6 w-6"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										aria-hidden="true"
+									>
+										<path d="M9 17V5l10-2v12" />
+										<circle cx="6.5" cy="17" r="2.5" fill="currentColor" />
+										<circle cx="16.5" cy="15" r="2.5" fill="currentColor" />
+										{#if !musicOn}
+											<path d="M3 3l18 18" />
 										{/if}
 									</svg>
 								</button>
@@ -1177,6 +1302,7 @@
 						<h2 class="text-2xl font-black tracking-widest text-uracil uppercase">Paused</h2>
 						<div class="my-3 flex flex-col items-start">
 							{@render toggle('Sound', soundOn, () => setSound(!soundOn))}
+							{@render toggle('Music', musicOn, () => setMusic(!musicOn))}
 							{@render toggle('Show tips', showTips, () => setShowTips(!showTips))}
 						</div>
 						<div class="flex w-full max-w-56 flex-col gap-2">
