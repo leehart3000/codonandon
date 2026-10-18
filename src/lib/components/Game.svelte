@@ -1010,7 +1010,8 @@
 			</span>
 			<span class="text-right leading-tight whitespace-nowrap">
 				<span class="block font-mono text-sm font-bold sm:text-base"
-					><span class:sr-only={view.score.score >= 10_000}>Score </span>{view.score.score}</span
+					><span class:sr-only={view.score.score >= 10_000}>Score&nbsp;</span>{view.score
+						.score}</span
 				>
 				<span class="block text-[10px] uppercase">{view.stats.chains} chains</span>
 			</span>
