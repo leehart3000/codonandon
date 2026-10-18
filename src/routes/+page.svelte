@@ -15,4 +15,6 @@
 	<a href="/about">About and privacy</a>
 </header>
 
-<Game />
+<main>
+	<Game />
+</main>

@@ -1010,11 +1010,11 @@
 			</span>
 			<span class="text-right leading-tight whitespace-nowrap">
 				<span class="block font-mono font-bold">Score {view.score.score}</span>
-				<span class="block text-[10px] uppercase opacity-70">{view.stats.chains} chains</span>
+				<span class="block text-[10px] uppercase">{view.stats.chains} chains</span>
 			</span>
 			<span class="text-right leading-tight whitespace-nowrap">
 				<span class="block font-mono font-bold">Lv {view.score.level}</span>
-				<span class="block text-[10px] uppercase opacity-70">{view.score.rows} rows</span>
+				<span class="block text-[10px] uppercase">{view.score.rows} rows</span>
 			</span>
 			<button
 				type="button"
@@ -1229,9 +1229,7 @@
 								<p class="font-arcade text-3xl tracking-wide text-gold uppercase">
 									{APP.name}<span class="align-super text-[0.4em]">™</span>
 								</p>
-								<p class="text-xs opacity-80">
-									An educational game with falling tetrominoes and amino acids
-								</p>
+								<p class="text-xs">An educational game with falling tetrominoes and amino acids</p>
 								<div class="my-3 flex w-full max-w-56 flex-col gap-2">
 									<button
 										type="button"
@@ -1248,7 +1246,7 @@
 									{@render menuButton('High scores', () => (showScores = true))}
 									{@render menuButton('Settings', () => (screen = 'settings'))}
 								</div>
-								<p class="text-xs opacity-80">
+								<p class="text-xs">
 									<a href="/about">About & privacy</a>
 									·
 									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
@@ -1256,7 +1254,7 @@
 									</a>
 									· Version {version}
 								</p>
-								<p class="text-xs opacity-60">
+								<p class="text-xs">
 									© {APP.copyrightYear}
 									<a href={APP.authorUrl} target="_blank" rel="noopener noreferrer">
 										{APP.author}<span class="sr-only"> (opens in a new tab)</span>
