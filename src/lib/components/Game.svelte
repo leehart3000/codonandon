@@ -999,8 +999,8 @@
 >
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
-		<div class="flex h-11 items-center gap-3" style:width="{barWidth}px">
-			<span class="font-arcade text-sm tracking-wide text-gold uppercase sm:text-base"
+		<div class="flex h-11 items-center gap-2 sm:gap-3" style:width="{barWidth}px">
+			<span class="font-arcade text-xs tracking-wide text-gold uppercase sm:text-base"
 				>{APP.name}<span class="align-super text-[0.5em]">™</span></span
 			>
 			<span class="flex h-8 flex-1 items-center justify-center">
@@ -1009,11 +1009,13 @@
 				{/if}
 			</span>
 			<span class="text-right leading-tight whitespace-nowrap">
-				<span class="block font-mono font-bold">Score {view.score.score}</span>
+				<span class="block font-mono text-sm font-bold sm:text-base"
+					><span class:sr-only={view.score.score >= 10_000}>Score </span>{view.score.score}</span
+				>
 				<span class="block text-[10px] uppercase">{view.stats.chains} chains</span>
 			</span>
 			<span class="text-right leading-tight whitespace-nowrap">
-				<span class="block font-mono font-bold">Lv {view.score.level}</span>
+				<span class="block font-mono text-sm font-bold sm:text-base">Lv {view.score.level}</span>
 				<span class="block text-[10px] uppercase">{view.score.rows} rows</span>
 			</span>
 			<button

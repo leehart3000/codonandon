@@ -1,83 +1,132 @@
-# Tetraminos
+# Tetraminos™
 
 An educational falling-blocks game about mRNA, codons and amino acids.
 
-**Live:** https://tetraminos.hartsoft.dev
+**Play it:** [tetraminos.hartsoft.dev](https://tetraminos.hartsoft.dev)
+
+Every square is an mRNA base (A, U, G or C). Cleared rows are read like a strand of mRNA: form a start codon (AUG) to begin a chain of amino acids, and a stop codon (UAA, UAG or UGA) to bank it for bonus points. Each codon after the start adds an amino acid, using the standard genetic code.
+
+It plays on phones (touch gestures), tablets and computers (keyboard), installs as an app, and works offline once loaded.
+
+## Features
+
+- Falling-blocks gameplay on a 12 × 20 board, with the 7 tetrominoes
+- Continuous mRNA reading: start codons found anywhere, reading in frame until a stop codon
+- On-board highlights for start codons, in-frame stop codons and opportunities
+- Optional tip cards that introduce the biology one idea at a time
+- Game-over stats: amino acids collected, longest chain compared with real peptides
+- Online high scores (top 10 and top 100), with arcade-style initials entry
+- Chiptune sound effects and original music, generated in the browser (no audio files)
+- Installable progressive web app, playable offline
 
 ## Tech stack
 
-- **App:** SvelteKit 3, Svelte 5, Vite, TypeScript, Tailwind CSS
-- **Hosting:** Cloudflare Workers (static assets, custom domain)
-- **PWA:** web app manifest, SvelteKit service worker (offline play)
-- **Testing:** Vitest (unit and component), Playwright (browser)
-- **Code quality:** ESLint, Prettier, svelte-check; Husky + lint-staged on commit
-- **CI/CD:** GitHub Actions (check, test, secret scan, then deploy)
-- **Security:** Dependabot, GitHub secret scanning with push protection, TruffleHog
-- **Monitoring:** Cloudflare Web Analytics (cookieless), Sentry (browser errors)
+- [SvelteKit](https://svelte.dev/docs/kit) 3, [Svelte](https://svelte.dev) 5, TypeScript, [Tailwind CSS](https://tailwindcss.com) 4, [Vite](https://vite.dev)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/) hosting, with [D1](https://developers.cloudflare.com/d1/) (SQLite) for high scores and [Turnstile](https://developers.cloudflare.com/turnstile/) for bot protection
+- [Vitest](https://vitest.dev) (unit and in-browser component tests) and [Playwright](https://playwright.dev) (end-to-end tests)
+- ESLint, Prettier, GitHub Actions, Dependabot, TruffleHog secret scanning
+- Cloudflare Web Analytics (cookieless) and [Sentry](https://sentry.io) error reporting (EU, no IP addresses)
 
 ## Getting started
 
-Requirements: [fnm](https://github.com/Schniz/fnm) (Node version from `.node-version`) and [pnpm](https://pnpm.io).
+You need [Node.js](https://nodejs.org) (the version in `.node-version`; [fnm](https://github.com/Schniz/fnm) picks it up automatically) and [pnpm](https://pnpm.io).
 
 ```sh
-pnpm install                    # install dependencies (also sets up the Git hook)
-pnpm exec playwright install    # download test browsers (once per computer)
-pnpm run dev                    # start the local dev server at http://localhost:5173
+pnpm install
+pnpm exec wrangler d1 migrations apply tetraminos --local   # create the local database
+pnpm run dev                                                # http://localhost:5173
 ```
 
-## Commands
+To try it on a phone on the same Wi-Fi, use `pnpm run dev --host` and open the "Network" address it prints. (Offline mode and installing need HTTPS, so they only work on the live site.)
 
-| Command           | What it does                                                       |
-| ----------------- | ------------------------------------------------------------------ |
-| `pnpm run dev`    | Local dev server with live reload                                  |
-| `pnpm run build`  | Build for production                                               |
-| `pnpm run deploy` | Build, then deploy to Cloudflare (normally done by GitHub Actions) |
-| `pnpm run check`  | Type-check the app and the service worker                          |
-| `pnpm run lint`   | Check formatting (Prettier) and code (ESLint)                      |
-| `pnpm run format` | Fix formatting                                                     |
-| `pnpm run test`   | Run all tests (Vitest, then Playwright)                            |
-| `pnpm run verify` | Check, lint and test: the same as CI                               |
-| `pnpm run gen`    | Regenerate Cloudflare types (after changing `wrangler.jsonc`)      |
+On the dev server, Turnstile uses Cloudflare's always-pass test keys, so saving scores works without the real secret.
 
-Always use `pnpm run deploy`, **not** `pnpm deploy`. The latter is a built-in pnpm command that does something else.
+## Scripts
 
-## How it works
+| Command              | What it does                                                         |
+| -------------------- | -------------------------------------------------------------------- |
+| `pnpm run dev`       | Development server                                                   |
+| `pnpm run verify`    | Everything CI checks: types, lint and formatting, unit and e2e tests |
+| `pnpm run check`     | Type checks (Svelte and the service worker)                          |
+| `pnpm run lint`      | Prettier and ESLint checks                                           |
+| `pnpm run format`    | Format all files with Prettier                                       |
+| `pnpm run test:unit` | Unit and component tests (Vitest; add `--run` to run once)           |
+| `pnpm run test:e2e`  | End-to-end tests (Playwright)                                        |
+| `pnpm run gen`       | Regenerate Cloudflare types after changing `wrangler.jsonc`          |
+| `pnpm run build`     | Production build                                                     |
+| `pnpm run deploy`    | Build and deploy to Cloudflare (CI does this automatically)          |
 
-- **Settings** that change per app live in `src/lib/config.ts`. The page title, description, theme colour, manifest and tests all read from it.
-- **Pages are prerendered** at build time (`src/routes/+layout.ts`), so they are served as plain files.
-- **The web app manifest** is generated from the settings by `src/routes/manifest.webmanifest/+server.ts`.
-- **The service worker** (`src/service-worker/index.ts`) caches the app for offline use. It never caches `/api/` requests or other websites.
-- **On every commit**, Husky runs lint-staged, which fixes formatting and lint issues in the staged files.
-- **On every push and pull request**, GitHub Actions type-checks, lints, tests and scans for secrets. On `main`, it then deploys to Cloudflare.
+Always use `pnpm run deploy`, not `pnpm deploy` (which is a different, built-in pnpm command).
 
-## Known quirks
+## Tests
 
-- **`@sentry/sveltekit` breaks on SvelteKit 3** (`app_stores_removed`), so the app uses `@sentry/svelte` in `src/hooks.client.ts` instead. Don't set `tracesSampleRate`.
-- **SvelteKit 3 moved hook types** to `@sveltejs/kit/hooks`, for example `HandleClientError`.
-- **Build output and types:** `wrangler types` adds extra types if a build exists, so `check`, `gen` and `build` delete `.svelte-kit/cloudflare` first.
-- **Harmless messages:** svelte-check warns "No svelte input files" for the service worker, and Vitest reports "close timed out". Both can be ignored.
-- **iPhone home-screen apps** have separate storage from Safari. After installing with "Open as Web App", open it once while online before it works offline.
+- **Unit tests** (`*.spec.ts`) sit beside the code they test, mostly in `src/lib/game`, `src/lib/genetics`, `src/lib/audio` and `src/lib/server`. They cover the game rules, the genetic code, scoring, high-score validation and more.
+- **Component tests** (`*.svelte.spec.ts`) run in a real browser (Chromium).
+- **End-to-end tests** (`src/routes/*.e2e.ts`) play through the app in a browser.
 
-## New app checklist
+## Database
 
-When starting a new app from this template:
+High scores are stored in Cloudflare D1. The schema lives in `migrations/`, as numbered SQL files. To change it, add a new migration (never edit an applied one), then apply it locally and live:
 
-1. **Settings:** update every value in `src/lib/config.ts`.
-2. **Package name:** change `"name"` in `package.json`.
-3. **Cloudflare Worker:** change `"name"` and the `routes` pattern in `wrangler.jsonc`, then run `pnpm run gen`.
-4. **Icon:** replace `static/icon.svg`, then regenerate the other sizes:
-   `pnpm dlx @vite-pwa/assets-generator --preset minimal-2023 static/icon.svg`
-5. **Home page:** replace the content of `src/routes/+page.svelte`.
-6. **Web Analytics:** in Cloudflare, add the new hostname (manual setup), then replace the token in `src/app.html`.
-7. **Sentry:** create a project (platform SvelteKit), turn on "Prevent Storing of IP Addresses", then replace the DSN in `src/hooks.client.ts`.
-8. **Deploy token:** create a Cloudflare API token for this repo only (Workers Scripts: Edit, Account Settings: Read, Workers Routes: Edit on the zone, User Details: Read, Memberships: Read). Add GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then add the repository **variable** `DEPLOY_ENABLED` = `true` to switch deploys on.
-9. **GitHub security:** confirm Dependabot alerts, security updates, secret scanning and push protection are on.
-10. **This README:** update the title, description and live address.
+```sh
+pnpm exec wrangler d1 migrations apply tetraminos --local
+pnpm exec wrangler d1 migrations apply tetraminos --remote
+```
+
+No IP addresses or other personal data are stored: only initials and game statistics.
+
+## Secrets
+
+The Turnstile **secret** key is a Worker secret, never in the repository:
+
+```sh
+pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+The Turnstile **site** key in `src/lib/config.ts` is public by design.
+
+## Moderation
+
+Names are checked against a `blocked_initials` table (letters only; spaces and full stops are ignored when checking). The list itself is kept **out of this repository**: add entries directly to the database, for example from a private SQL file of `INSERT OR IGNORE INTO blocked_initials (initials) VALUES ('XXX');` lines:
+
+```sh
+pnpm exec wrangler d1 execute tetraminos --remote --file path/to/blocked-initials.sql
+```
+
+To find and remove a score:
+
+```sh
+pnpm exec wrangler d1 execute tetraminos --remote --command "SELECT id, initials, score, created_at FROM scores ORDER BY created_at DESC LIMIT 20"
+pnpm exec wrangler d1 execute tetraminos --remote --command "DELETE FROM scores WHERE id = 123"
+```
+
+## Deployment
+
+Every push to `main` runs CI (`.github/workflows/ci.yml`): type checks, linting, tests and a secret scan. If they all pass, and the repository variable `DEPLOY_ENABLED` is `true`, it deploys to Cloudflare using the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
+
+The start screen shows the version (the short git commit) of the build you're running.
+
+## Project structure
+
+```
+src/
+  lib/
+    audio/        Sound effects, music (score and player) and sound cues
+    components/   Game, high scores and the genetic-code rain
+    game/         Game engine: board, pieces, reading, scoring, highlights, tips
+    genetics/     The genetic code and real peptides
+    server/       High-score validation and Turnstile (server only)
+    config.ts     App settings: name, colours, URLs
+  routes/
+    about/        About and privacy page
+    api/scores/   High-score API
+  service-worker/ Offline support
+migrations/       Database schema (D1)
+static/           Icons
+```
 
 ## Licence
 
-Copyright © 2026 Lee Hart.
+[AGPL-3.0-only](LICENSE). © 2026 [Lee Hart](https://hartsoft.dev).
 
-The source code is licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only). If you run a modified version of this app for other people, including as a website, you must offer them your modified source code under the same licence, and keep this copyright notice.
-
-The name "Tetraminos" and the Tetraminos logo are not covered by this licence, and may not be used for modified versions without permission.
+Tetraminos™ is not affiliated with or endorsed by Tetris or The Tetris Company.
