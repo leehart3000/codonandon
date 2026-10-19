@@ -28,6 +28,7 @@
 	} from '#lib/audio/sound.js';
 	import { playMusic, restartMusic, setMusicEnabled, stopMusic } from '#lib/audio/music.js';
 	import CodeRain from '#lib/components/CodeRain.svelte';
+	import { resolve } from '$app/paths';
 
 	/** Base colours, matching the icon: A green, U red, G gold, C blue. */
 	const COLOURS: Record<Base, string> = {
@@ -1250,14 +1251,16 @@
 									{@render menuButton('Settings', () => (screen = 'settings'))}
 								</div>
 								<p class="text-xs">
-									<a href="/about">About & Privacy</a>
+									<a href={resolve('/about')}>About & Privacy</a>
 									·
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external link -->
 									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
 										Source Code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
 									</a>
 								</p>
 								<p class="text-xs">
 									© {APP.copyrightYear}
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external link -->
 									<a href={APP.authorUrl} target="_blank" rel="noopener noreferrer">
 										{APP.author}<span class="sr-only"> (opens in a new tab)</span>
 									</a>

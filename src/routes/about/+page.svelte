@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { APP } from '#lib/config.js';
+	import { resolve } from '$app/paths';
 </script>
 
 <svelte:head>
@@ -11,7 +12,7 @@
 </svelte:head>
 
 <main class="mx-auto max-w-prose px-4 py-6 text-slate-200">
-	<p><a class="text-gold" href="/">← Back to the game</a></p>
+	<p><a class="text-gold" href={resolve('/')}>← Back to the game</a></p>
 
 	<h1 class="mt-4 font-arcade text-2xl text-gold uppercase">About</h1>
 
@@ -39,9 +40,11 @@
 	<h2 class="mt-6 font-arcade text-base text-gold uppercase">Who made it</h2>
 	<p class="mt-2">
 		Made by
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external link -->
 		<a class="underline" href={APP.authorUrl} target="_blank" rel="noopener noreferrer"
 			>{APP.author}<span class="sr-only"> (opens in a new tab)</span></a
 		>. The
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external link -->
 		<a class="underline" href={APP.sourceUrl} target="_blank" rel="noopener noreferrer"
 			>source code<span class="sr-only"> (opens in a new tab)</span></a
 		>

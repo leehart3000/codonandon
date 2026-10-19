@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Game from '#lib/components/Game.svelte';
 	import { APP } from '#lib/config.js';
+	import { resolve } from '$app/paths';
 </script>
 
 <svelte:head>
@@ -12,7 +13,7 @@
 <header class="sr-only">
 	<h1>{APP.name}</h1>
 	<p>{APP.description}</p>
-	<a href="/about">About and privacy</a>
+	<a href={resolve('/about')}>About and privacy</a>
 </header>
 
 <main>
