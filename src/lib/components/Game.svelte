@@ -986,6 +986,13 @@
 	</span>
 {/snippet}
 
+{#snippet wordmark()}
+	<span aria-hidden="true"
+		>CO<span class="normal-case">d</span>ONAN<span class="normal-case">d</span>ON</span
+	>
+	<span class="sr-only">{APP.name}</span>
+{/snippet}
+
 <!-- The whole play area takes gestures, so a swipe beside the board still controls the piece. -->
 <div
 	bind:this={playArea}
@@ -1002,7 +1009,7 @@
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-2 sm:gap-3" style:width="{barWidth}px">
 			<span class="font-arcade text-xs tracking-wide text-gold uppercase sm:text-base"
-				>{APP.name}</span
+				>{@render wordmark()}</span
 			>
 			<span class="flex h-8 flex-1 items-center justify-center">
 				{#if started && !paused && !over}
@@ -1231,7 +1238,7 @@
 									</svg>
 								</button>
 								<p class="font-arcade text-3xl tracking-wide text-gold uppercase">
-									{APP.name}
+									{@render wordmark()}
 								</p>
 								<p class="text-xs">An educational game<br />with falling blocks and amino acids</p>
 								<div class="my-3 flex w-full max-w-56 flex-col gap-2">
