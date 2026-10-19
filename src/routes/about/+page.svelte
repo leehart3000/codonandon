@@ -16,9 +16,9 @@
 	<h1 class="mt-4 font-arcade text-2xl text-gold uppercase">About</h1>
 
 	<p class="mt-3">
-		{APP.name}™ is an educational falling-blocks game about mRNA, codons and amino acids. Cleared
-		rows are read like a strand of mRNA: form a start codon to begin a chain of amino acids, and a
-		stop codon to bank it.
+		{APP.name} is an educational falling-blocks game about mRNA, codons and amino acids. Cleared rows
+		are read like a strand of mRNA: form a start codon to begin a chain of amino acids, and a stop codon
+		to bank it.
 	</p>
 	<p class="mt-3">
 		It plays on phones, tablets and computers: with gestures on touch screens, and the keyboard on
@@ -45,8 +45,8 @@
 		<a class="underline" href={APP.sourceUrl} target="_blank" rel="noopener noreferrer"
 			>source code<span class="sr-only"> (opens in a new tab)</span></a
 		>
-		is open, under the AGPL-3.0 licence. {APP.name}™ is not affiliated with or endorsed by Tetris or
-		The Tetris Company.
+		is open, under the AGPL-3.0 licence. {APP.name} is not affiliated with or endorsed by Tetris or The
+		Tetris Company.
 	</p>
 
 	<h1 id="privacy" class="mt-8 font-arcade text-2xl text-gold uppercase">Privacy</h1>

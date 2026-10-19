@@ -1,8 +1,8 @@
-# Tetraminos™
+# Codonandon
 
 An educational falling-blocks game about mRNA, codons and amino acids.
 
-**Play it:** [tetraminos.hartsoft.dev](https://tetraminos.hartsoft.dev)
+**Play it:** [codonandon.hartsoft.dev](https://codonandon.hartsoft.dev)
 
 Every square is an mRNA base (A, U, G or C). Cleared rows are read like a strand of mRNA: form a start codon (AUG) to begin a chain of amino acids, and a stop codon (UAA, UAG or UGA) to bank it for bonus points. Each codon after the start adds an amino acid, using the standard genetic code.
 
@@ -129,4 +129,4 @@ static/           Icons
 
 [AGPL-3.0-only](LICENSE). © 2026 [Lee Hart](https://hartsoft.dev).
 
-Tetraminos™ is not affiliated with or endorsed by Tetris or The Tetris Company.
+Codonandon is not affiliated with or endorsed by Tetris or The Tetris Company.

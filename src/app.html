@@ -15,11 +15,11 @@
 		<!-- Cloudflare Web Analytics: cookieless, no personal data. The token is public by design. -->
 		<script>
 			// Cloudflare Web Analytics: only on the live site, not the dev server or previews.
-			if (location.hostname === 'tetraminos.hartsoft.dev') {
+			if (location.hostname === 'codonandon.hartsoft.dev') {
 				const beacon = document.createElement('script');
 				beacon.defer = true;
 				beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
-				beacon.dataset.cfBeacon = JSON.stringify({ token: 'b4b7903030f74d21b61b972e398c3e04' });
+				beacon.dataset.cfBeacon = JSON.stringify({ token: '26c323f39c524c31b403d76acfbdcd19' });
 				document.head.append(beacon);
 			}
 		</script>

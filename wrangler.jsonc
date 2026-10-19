@@ -10,7 +10,10 @@
 	},
 	"workers_dev": false,
 	"preview_urls": false,
-	"routes": [{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }],
+	"routes": [
+		{ "pattern": "codonandon.hartsoft.dev", "custom_domain": true },
+		{ "pattern": "tetraminos.hartsoft.dev", "custom_domain": true }
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",

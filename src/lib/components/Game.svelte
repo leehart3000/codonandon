@@ -1001,7 +1001,7 @@
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-2 sm:gap-3" style:width="{barWidth}px">
 			<span class="font-arcade text-xs tracking-wide text-gold uppercase sm:text-base"
-				>{APP.name}<span class="align-super text-[0.5em]">™</span></span
+				>{APP.name}</span
 			>
 			<span class="flex h-8 flex-1 items-center justify-center">
 				{#if started && !paused && !over}
@@ -1230,9 +1230,9 @@
 									</svg>
 								</button>
 								<p class="font-arcade text-3xl tracking-wide text-gold uppercase">
-									{APP.name}<span class="align-super text-[0.4em]">™</span>
+									{APP.name}
 								</p>
-								<p class="text-xs">An educational game with falling tetrominoes and amino acids</p>
+								<p class="text-xs">An educational game<br />with falling blocks and amino acids</p>
 								<div class="my-3 flex w-full max-w-56 flex-col gap-2">
 									<button
 										type="button"
@@ -1250,18 +1250,18 @@
 									{@render menuButton('Settings', () => (screen = 'settings'))}
 								</div>
 								<p class="text-xs">
-									<a href="/about">About & privacy</a>
+									<a href="/about">About & Privacy</a>
 									·
 									<a href={APP.sourceUrl} target="_blank" rel="noopener noreferrer">
-										Source code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
+										Source Code (AGPL-3.0)<span class="sr-only"> (opens in a new tab)</span>
 									</a>
-									· Version {version}
 								</p>
 								<p class="text-xs">
 									© {APP.copyrightYear}
 									<a href={APP.authorUrl} target="_blank" rel="noopener noreferrer">
 										{APP.author}<span class="sr-only"> (opens in a new tab)</span>
 									</a>
+									· Version {version}
 								</p>
 							{/if}
 						</div>
@@ -1285,7 +1285,7 @@
 									<dd class="font-mono text-base font-bold">{formatTime(gameTime)}</dd>
 								</div>
 								<div>
-									<dt class="opacity-70">Tetrominoes</dt>
+									<dt class="opacity-70">Blocks Placed</dt>
 									<dd class="font-mono text-base font-bold">{piecesPlaced}</dd>
 								</div>
 								<div>
