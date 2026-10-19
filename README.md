@@ -33,7 +33,7 @@ You need [Node.js](https://nodejs.org) (the version in `.node-version`; [fnm](ht
 
 ```sh
 pnpm install
-pnpm exec wrangler d1 migrations apply tetraminos --local   # create the local database
+pnpm exec wrangler d1 migrations apply codonandon --local   # create the local database
 pnpm run dev                                                # http://localhost:5173
 ```
 
@@ -69,8 +69,8 @@ Always use `pnpm run deploy`, not `pnpm deploy` (which is a different, built-in 
 High scores are stored in Cloudflare D1. The schema lives in `migrations/`, as numbered SQL files. To change it, add a new migration (never edit an applied one), then apply it locally and live:
 
 ```sh
-pnpm exec wrangler d1 migrations apply tetraminos --local
-pnpm exec wrangler d1 migrations apply tetraminos --remote
+pnpm exec wrangler d1 migrations apply codonandon --local
+pnpm exec wrangler d1 migrations apply codonandon --remote
 ```
 
 No IP addresses or other personal data are stored: only initials and game statistics.
@@ -90,14 +90,14 @@ The Turnstile **site** key in `src/lib/config.ts` is public by design.
 Names are checked against a `blocked_initials` table (letters only; spaces and full stops are ignored when checking). The list itself is kept **out of this repository**: add entries directly to the database, for example from a private SQL file of `INSERT OR IGNORE INTO blocked_initials (initials) VALUES ('XXX');` lines:
 
 ```sh
-pnpm exec wrangler d1 execute tetraminos --remote --file path/to/blocked-initials.sql
+pnpm exec wrangler d1 execute codonandon --remote --file path/to/blocked-initials.sql
 ```
 
 To find and remove a score:
 
 ```sh
-pnpm exec wrangler d1 execute tetraminos --remote --command "SELECT id, initials, score, created_at FROM scores ORDER BY created_at DESC LIMIT 20"
-pnpm exec wrangler d1 execute tetraminos --remote --command "DELETE FROM scores WHERE id = 123"
+pnpm exec wrangler d1 execute codonandon --remote --command "SELECT id, initials, score, created_at FROM scores ORDER BY created_at DESC LIMIT 20"
+pnpm exec wrangler d1 execute codonandon --remote --command "DELETE FROM scores WHERE id = 123"
 ```
 
 ## Deployment

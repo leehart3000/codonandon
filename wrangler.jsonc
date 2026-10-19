@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "tetraminos",
+	"name": "codonandon",
 	"compatibility_date": "2026-10-12",
 	"compatibility_flags": ["nodejs_als"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
@@ -17,8 +17,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "tetraminos",
-			"database_id": "4b699df3-92a0-4460-88a9-7d89125fb4fc",
+			"database_name": "codonandon",
+			"database_id": "c431a9d5-3533-4b39-bc80-1e1497a1d127",
 			"migrations_dir": "migrations"
 		}
 	]
