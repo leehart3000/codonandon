@@ -62,6 +62,6 @@
 	},
 	"dependencies": {
 		"@fontsource-variable/orbitron": "^5.3.0",
-		"@sentry/svelte": "^11.6.0"
+		"@sentry/svelte": "^11.8.0"
 	}
 }
