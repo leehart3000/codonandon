@@ -2,6 +2,8 @@
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"strict": true,
+		// Lets vite.config.ts import a .ts file by its full name, as Vite's native config loader needs.
+		"rewriteRelativeImportExtensions": true,
 		"types": ["$app/types", "node", "./worker-configuration.d.ts"]
 	},
 	"include": ["src", "vite.config.ts", "playwright.config.ts"],

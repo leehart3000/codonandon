@@ -4,7 +4,7 @@ import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
-import { formatVersion } from './src/lib/build-version';
+import { formatVersion } from './src/lib/build-version.ts';
 
 /** A git command's output, or null if it fails (for example, no tags yet). */
 function git(command: string): string | null {
