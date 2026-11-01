@@ -1,8 +1,9 @@
+import { HELIX } from './helix';
 import { MAINFRAME } from './mainframe';
 import { ARCADE, type Tune } from './score';
 
 /** The tunes to choose from in Settings, the default first. Add new tunes here. */
-export const TUNES: readonly Tune[] = [MAINFRAME, ARCADE];
+export const TUNES: readonly Tune[] = [MAINFRAME, ARCADE, HELIX];
 
 export const DEFAULT_TUNE = MAINFRAME;
 

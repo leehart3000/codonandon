@@ -36,6 +36,8 @@ interface ToneOptions {
 	filter?: { from: number; to: number; resonance: number };
 	/** A second oscillator slightly out of tune, for a thicker, synthesiser sound (in cents). */
 	detune?: number;
+	/** Fade in over this many seconds, for a softer start (like breath on a flute). */
+	attack?: number;
 }
 
 function tone(
@@ -44,11 +46,16 @@ function tone(
 	frequency: number,
 	at: number,
 	duration: number,
-	{ type, volume, filter, detune }: ToneOptions
+	{ type, volume, filter, detune, attack }: ToneOptions
 ) {
 	const gain = context.createGain();
-	gain.gain.setValueAtTime(volume, at);
-	gain.gain.exponentialRampToValueAtTime(0.0001, at + duration * 0.9);
+	if (attack) {
+		gain.gain.setValueAtTime(0.0001, at);
+		gain.gain.linearRampToValueAtTime(volume, at + attack);
+	} else {
+		gain.gain.setValueAtTime(volume, at);
+	}
+	gain.gain.exponentialRampToValueAtTime(0.0001, at + Math.max(duration * 0.9, (attack ?? 0) * 2));
 
 	let input: AudioNode = gain;
 	if (filter) {
@@ -110,6 +117,16 @@ function play(
 			});
 		case 'blip':
 			return tone(context, output, frequency, at, 0.05, { type: 'sine', volume: 0.03 });
+		case 'bell':
+			// A soft mallet: a pure tone that rings on, with a quiet, brighter strike on top.
+			tone(context, output, frequency, at, 0.6, { type: 'sine', volume: 0.035 });
+			return tone(context, output, frequency * 3, at, 0.15, { type: 'sine', volume: 0.008 });
+		case 'flute':
+			return tone(context, output, frequency, at, duration, {
+				type: 'sine',
+				volume: 0.05,
+				attack: 0.04
+			});
 	}
 }
 
@@ -142,14 +159,13 @@ function drum(
 	kind: 'kick' | 'snare' | 'hat',
 	kit: Tune['kit']
 ) {
-	const industrial = kit === 'industrial';
 	if (kind === 'kick') {
+		const { from, to, volume, length } = KICKS[kit];
 		const oscillator = context.createOscillator();
 		const gain = context.createGain();
-		const length = industrial ? 0.22 : 0.15;
-		oscillator.frequency.setValueAtTime(industrial ? 130 : 150, at);
-		oscillator.frequency.exponentialRampToValueAtTime(industrial ? 35 : 40, at + length * 0.8);
-		gain.gain.setValueAtTime(industrial ? 0.5 : 0.4, at);
+		oscillator.frequency.setValueAtTime(from, at);
+		oscillator.frequency.exponentialRampToValueAtTime(to, at + length * 0.8);
+		gain.gain.setValueAtTime(volume, at);
 		gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
 		oscillator.connect(gain).connect(output);
 		oscillator.start(at);
@@ -157,18 +173,31 @@ function drum(
 		return;
 	}
 	if (kind === 'hat') {
-		noiseHit(context, output, at, 'highpass', industrial ? 8000 : 7000, 0.06, 0.03);
+		// Soft: a gentle shaker. Otherwise a crisp 8-bit hi-hat.
+		if (kit === 'soft') noiseHit(context, output, at, 'highpass', 6000, 0.035, 0.06);
+		else noiseHit(context, output, at, 'highpass', kit === 'industrial' ? 8000 : 7000, 0.06, 0.03);
 		return;
 	}
-	if (!industrial) {
+	if (kit === 'chip') {
 		noiseHit(context, output, at, 'bandpass', 1800, 0.12, 0.1);
-		return;
+	} else if (kit === 'industrial') {
+		// A hard noise crack, plus a short metallic clank.
+		noiseHit(context, output, at, 'highpass', 900, 0.14, 0.12);
+		tone(context, output, 330, at, 0.06, { type: 'square', volume: 0.025 });
+		tone(context, output, 470, at, 0.05, { type: 'square', volume: 0.02 });
+	} else {
+		// A light rim click instead of a snare.
+		noiseHit(context, output, at, 'highpass', 3000, 0.03, 0.03);
+		tone(context, output, 1200, at, 0.03, { type: 'triangle', volume: 0.03 });
 	}
-	// Industrial snare: a hard noise crack, plus a short metallic clank.
-	noiseHit(context, output, at, 'highpass', 900, 0.14, 0.12);
-	tone(context, output, 330, at, 0.06, { type: 'square', volume: 0.025 });
-	tone(context, output, 470, at, 0.05, { type: 'square', volume: 0.02 });
 }
+
+/** Each kit's kick drum: a quick drop in pitch, from `from` to `to` hertz. */
+const KICKS: Record<Tune['kit'], { from: number; to: number; volume: number; length: number }> = {
+	chip: { from: 150, to: 40, volume: 0.4, length: 0.15 },
+	industrial: { from: 130, to: 35, volume: 0.5, length: 0.22 },
+	soft: { from: 110, to: 45, volume: 0.28, length: 0.18 }
+};
 
 /** Schedule the notes due in the next moment. Runs every 25 ms while the music plays. */
 function schedule() {

@@ -46,10 +46,11 @@ describe('the Mainframe tune', () => {
 });
 
 describe('choosing a tune', () => {
-	it('defaults to Mainframe, with Arcade still available', () => {
+	it('defaults to Mainframe, with Arcade and Helix available', () => {
 		expect(DEFAULT_TUNE).toBe(MAINFRAME);
-		expect(TUNES.map((tune) => tune.name)).toEqual(['Mainframe', 'Arcade']);
+		expect(TUNES.map((tune) => tune.name)).toEqual(['Mainframe', 'Arcade', 'Helix']);
 		expect(tuneById('arcade').name).toBe('Arcade');
+		expect(tuneById('helix').name).toBe('Helix');
 		expect(tuneById(null)).toBe(MAINFRAME);
 		expect(tuneById('no-such-tune')).toBe(MAINFRAME);
 	});

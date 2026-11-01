@@ -111,7 +111,7 @@ export function frequency(note: string): number {
 }
 
 /** The sounds a tune can use. The player (music.ts) decides how each one sounds. */
-export type Instrument = 'lead' | 'bass' | 'pulse' | 'arp' | 'synth' | 'blip';
+export type Instrument = 'lead' | 'bass' | 'pulse' | 'arp' | 'synth' | 'blip' | 'bell' | 'flute';
 
 /** One note to play: on which instrument, at what pitch, and for how many steps. */
 export interface Voice {
@@ -136,8 +136,8 @@ export interface Tune {
 	/** How many steps make one beat: 2 for eighth notes, 4 for sixteenth notes. */
 	stepsPerBeat: number;
 	steps: Step[];
-	/** Drum sounds: 8-bit, or heavier and metallic. */
-	kit: 'chip' | 'industrial';
+	/** Drum sounds: 8-bit, heavier and metallic, or soft and light. */
+	kit: 'chip' | 'industrial' | 'soft';
 	/** Beats per minute on the menu screens (calmer, without drums). */
 	menuTempo: number;
 	/** Beats per minute during a game, faster with each level. */

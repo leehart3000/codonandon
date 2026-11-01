@@ -1212,31 +1212,21 @@
 										musicVolume,
 										setMusicLevel
 									)}
-									<div
-										class="flex min-h-11 w-full items-center gap-2 text-sm"
-										role="group"
-										aria-labelledby="tune-label"
-									>
-										<span id="tune-label">Tune</span>
-										<span class="ml-auto flex gap-2">
-											{#each TUNES as tune (tune.id)}
-												<button
-													type="button"
-													aria-pressed={tuneId === tune.id}
-													class="min-h-9 rounded border-2 px-2 font-semibold {tuneId === tune.id
-														? 'border-adenine bg-adenine text-slate-900'
-														: 'border-slate-500 hover:border-adenine'}"
-													onclick={() => {
-														click();
-														chooseTune(tune.id);
-													}}
-												>
-													{tune.name}
-												</button>
-											{/each}
-										</span>
-									</div>
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
+									<label class="flex min-h-11 w-full items-center gap-3 text-sm">
+										Tune
+										<select
+											class="ml-auto min-h-9 rounded border-2 border-slate-500 bg-slate-900 px-2 font-semibold hover:border-adenine"
+											onchange={(event) => {
+												click();
+												chooseTune(event.currentTarget.value);
+											}}
+										>
+											{#each TUNES as tune (tune.id)}
+												<option value={tune.id} selected={tuneId === tune.id}>{tune.name}</option>
+											{/each}
+										</select>
+									</label>
 								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
 									{@render menuButton('Main menu', () => (screen = 'home'))}
