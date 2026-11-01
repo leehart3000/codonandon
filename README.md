@@ -1,4 +1,4 @@
-# Codonandon
+# CodonAndon
 
 An educational falling-blocks game about mRNA, codons and amino acids.
 
@@ -129,4 +129,4 @@ static/           Icons
 
 [AGPL-3.0-only](LICENSE). © 2026 [Lee Hart](https://hartsoft.dev).
 
-Codonandon is not affiliated with or endorsed by Tetris or The Tetris Company.
+CodonAndon is not affiliated with or endorsed by Tetris or The Tetris Company.

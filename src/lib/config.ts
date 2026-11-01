@@ -3,8 +3,8 @@
  * When starting a new app from the template, change these values first.
  */
 export const APP = {
-	name: 'Codonandon',
-	shortName: 'Codonandon',
+	name: 'CodonAndon',
+	shortName: 'CodonAndon',
 	hostname: 'codonandon.hartsoft.dev',
 	sourceUrl: 'https://github.com/leehart3000/codonandon',
 	description: 'An educational falling-blocks game about mRNA, codons and amino acids.',

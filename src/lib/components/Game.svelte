@@ -53,6 +53,16 @@
 	const SOUND_VOLUME_KEY = 'soundVolume';
 	const MUSIC_VOLUME_KEY = 'musicVolume';
 
+	/** The wordmark's letters, coloured like the logo: C blue, O and A green, D gold, N red. */
+	const WORDMARK_COLOURS: Record<string, string> = {
+		c: 'text-cytosine',
+		o: 'text-adenine',
+		d: 'text-guanine',
+		n: 'text-uracil',
+		a: 'text-adenine'
+	};
+	const WORDMARK = [...APP.name];
+
 	/** Smallest and largest square size, in pixels. */
 	const MIN_CELL = 14;
 	const MAX_CELL = 32;
@@ -988,7 +998,9 @@
 
 {#snippet wordmark()}
 	<span aria-hidden="true"
-		>CO<span class="normal-case">d</span>ONAN<span class="normal-case">d</span>ON</span
+		>{#each WORDMARK as letter, index (index)}<span class={WORDMARK_COLOURS[letter.toLowerCase()]}
+				>{letter}</span
+			>{/each}</span
 	>
 	<span class="sr-only">{APP.name}</span>
 {/snippet}
@@ -1008,9 +1020,7 @@
 	<div class="flex flex-col items-center">
 		<!-- Top bar: wordmark, next piece, score and level (and a pause button on phones). -->
 		<div class="flex h-11 items-center gap-2 sm:gap-3" style:width="{barWidth}px">
-			<span class="font-arcade text-xs tracking-wide text-gold uppercase sm:text-base"
-				>{@render wordmark()}</span
-			>
+			<span class="font-arcade text-xs tracking-wide sm:text-base">{@render wordmark()}</span>
 			<span class="flex h-8 flex-1 items-center justify-center">
 				{#if started && !paused && !over}
 					{@render pieceGrid(view.next, 7)}
@@ -1237,7 +1247,7 @@
 										{/if}
 									</svg>
 								</button>
-								<p class="font-arcade text-3xl tracking-wide text-gold uppercase">
+								<p class="font-arcade text-3xl tracking-wide">
 									{@render wordmark()}
 								</p>
 								<p class="text-xs">An educational game<br />with falling blocks and amino acids</p>
