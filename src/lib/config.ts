@@ -16,6 +16,8 @@ export const APP = {
 	copyrightYear: 2026,
 	/** Cloudflare Turnstile site key (public). The matching secret is a Worker secret. */
 	turnstileSiteKey: '0x4AAAAAAFX5a4VULA9dZlJg',
+	/** Turn the logo in the browser tab like a game piece (see favicon.ts). Off: it can distract. */
+	animatedFavicon: false,
 	themeColor: '#020617',
 	backgroundColor: '#020617'
 } as const;

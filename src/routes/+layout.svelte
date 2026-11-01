@@ -8,8 +8,8 @@
 
 	let { children }: LayoutProps = $props();
 
-	// Turn the logo in the browser tab, like a game piece.
-	onMount(() => animateFavicon());
+	// Turn the logo in the browser tab, like a game piece, if switched on in config.ts.
+	onMount(() => (APP.animatedFavicon ? animateFavicon() : undefined));
 </script>
 
 <!-- Each page sets its own title and description. -->

@@ -1214,9 +1214,11 @@
 									)}
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
 									<label class="flex min-h-11 w-full items-center gap-3 text-sm">
+										<!-- The width of a switch, so "Tune" lines up with the labels above. -->
+										<span class="w-12 shrink-0" aria-hidden="true"></span>
 										Tune
 										<select
-											class="ml-auto min-h-9 rounded border-2 border-slate-500 bg-slate-900 px-2 font-semibold hover:border-adenine"
+											class="ml-auto min-h-9 rounded border-2 border-adenine bg-slate-900 px-2 font-semibold"
 											onchange={(event) => {
 												click();
 												chooseTune(event.currentTarget.value);
