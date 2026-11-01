@@ -1,5 +1,6 @@
 /**
- * The background music: an original 8-bar chiptune loop in C major (chords C, Am, F, G).
+ * Shared music notation (notes, steps and tunes), and the original tune, "Arcade":
+ * an 8-bar chiptune loop in C major (chords C, Am, F, G).
  * Written as notes, so anyone can change it. Lengths are in eighth notes; each bar has 8.
  */
 
@@ -94,6 +95,7 @@ const SEMITONES: Record<string, number> = {
 	'F#': 6,
 	G: 7,
 	Ab: 8,
+	'G#': 8,
 	A: 9,
 	Bb: 10,
 	B: 11
@@ -108,13 +110,38 @@ export function frequency(note: string): number {
 	return 440 * 2 ** ((midi - 69) / 12);
 }
 
-/** What happens on one eighth-note step of the loop. */
+/** The sounds a tune can use. The player (music.ts) decides how each one sounds. */
+export type Instrument = 'lead' | 'bass' | 'pulse' | 'arp' | 'synth' | 'blip';
+
+/** One note to play: on which instrument, at what pitch, and for how many steps. */
+export interface Voice {
+	instrument: Instrument;
+	frequency: number;
+	steps: number;
+}
+
+/** What happens on one step of a loop. */
 export interface Step {
-	melody?: { frequency: number; eighths: number };
-	bass?: { frequency: number; eighths: number };
+	voices: Voice[];
 	kick: boolean;
 	snare: boolean;
 	hat: boolean;
+}
+
+/** A complete tune, ready to play. */
+export interface Tune {
+	id: string;
+	/** Shown in Settings. */
+	name: string;
+	/** How many steps make one beat: 2 for eighth notes, 4 for sixteenth notes. */
+	stepsPerBeat: number;
+	steps: Step[];
+	/** Drum sounds: 8-bit, or heavier and metallic. */
+	kit: 'chip' | 'industrial';
+	/** Beats per minute on the menu screens (calmer, without drums). */
+	menuTempo: number;
+	/** Beats per minute during a game, faster with each level. */
+	tempoFor(level: number): number;
 }
 
 /** The whole loop as eighth-note steps: kick on beats 1 and 3, snare on 2 and 4, hi-hat between. */
@@ -122,6 +149,7 @@ export function buildSteps(): Step[] {
 	const steps: Step[] = Array.from({ length: MELODY.length * EIGHTHS_PER_BAR }, (_, i) => {
 		const position = i % EIGHTHS_PER_BAR;
 		return {
+			voices: [],
 			kick: position === 0 || position === 4,
 			snare: position === 2 || position === 6,
 			hat: position % 2 === 1
@@ -132,7 +160,8 @@ export function buildSteps(): Step[] {
 	for (const bar of MELODY) {
 		for (const [note, eighths] of bar) {
 			const step = steps[position];
-			if (note && step) step.melody = { frequency: frequency(note), eighths };
+			if (note && step)
+				step.voices.push({ instrument: 'lead', frequency: frequency(note), steps: eighths });
 			position += eighths;
 		}
 	}
@@ -141,7 +170,8 @@ export function buildSteps(): Step[] {
 		for (const offset of [0, 2, 4, 6]) {
 			const step = steps[bar * EIGHTHS_PER_BAR + offset];
 			const octave = offset === 2 || offset === 6 ? 2 : 1;
-			if (step) step.bass = { frequency: frequency(root) * octave, eighths: 2 };
+			if (step)
+				step.voices.push({ instrument: 'bass', frequency: frequency(root) * octave, steps: 2 });
 		}
 	});
 	return steps;
@@ -151,3 +181,14 @@ export function buildSteps(): Step[] {
 export function tempoFor(level: number): number {
 	return Math.min(180, 120 + (level - 1) * 6);
 }
+
+/** The original tune: cheerful chiptune. */
+export const ARCADE: Tune = {
+	id: 'arcade',
+	name: 'Arcade',
+	stepsPerBeat: 2,
+	steps: buildSteps(),
+	kit: 'chip',
+	menuTempo: 96,
+	tempoFor
+};

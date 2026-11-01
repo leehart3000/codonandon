@@ -20,8 +20,10 @@ describe('the music', () => {
 		const steps = buildSteps();
 		expect(steps).toHaveLength(MELODY.length * EIGHTHS_PER_BAR);
 		expect(steps[0]).toMatchObject({ kick: true, snare: false, hat: false });
-		expect(steps[0]?.melody?.frequency).toBeCloseTo(frequency('G4'));
-		expect(steps[0]?.bass?.frequency).toBeCloseTo(frequency('C3'));
+		const voice = (instrument: string) =>
+			steps[0]?.voices.find((each) => each.instrument === instrument)?.frequency;
+		expect(voice('lead')).toBeCloseTo(frequency('G4'));
+		expect(voice('bass')).toBeCloseTo(frequency('C3'));
 		expect(steps[1]).toMatchObject({ kick: false, hat: true });
 	});
 

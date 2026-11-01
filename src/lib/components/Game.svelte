@@ -26,7 +26,14 @@
 		setSoundVolume,
 		unlockAudio
 	} from '#lib/audio/sound.js';
-	import { playMusic, restartMusic, setMusicEnabled, stopMusic } from '#lib/audio/music.js';
+	import {
+		playMusic,
+		restartMusic,
+		setMusicEnabled,
+		setTune,
+		stopMusic
+	} from '#lib/audio/music.js';
+	import { DEFAULT_TUNE, TUNES, tuneById } from '#lib/audio/tunes.js';
 	import CodeRain from '#lib/components/CodeRain.svelte';
 	import { resolve } from '$app/paths';
 
@@ -52,6 +59,7 @@
 	const MUSIC_KEY = 'music';
 	const SOUND_VOLUME_KEY = 'soundVolume';
 	const MUSIC_VOLUME_KEY = 'musicVolume';
+	const TUNE_KEY = 'tune';
 
 	/** The wordmark's letters, coloured like the logo: C blue, O and A green, D gold, N red. */
 	const WORDMARK_COLOURS: Record<string, string> = {
@@ -108,6 +116,8 @@
 	let musicOn = $state(true);
 	let soundVolume = $state(80);
 	let musicVolume = $state(50);
+	/** Which tune plays: its id, as listed in tunes.ts. */
+	let tuneId = $state(DEFAULT_TUNE.id);
 	/** Whether tips were on at any point in this game: recorded with a saved score. */
 	let tipsUsed = $state(false);
 	/** True once the player has pressed something: browsers only allow sound after that. */
@@ -359,6 +369,14 @@
 			if (musicVolume === 0) setMusicLevel(50);
 		}
 		remember(MUSIC_KEY, String(value));
+	}
+
+	/** Choose the tune, and remember the choice. On the menu, it starts playing straight away. */
+	function chooseTune(id: string) {
+		const tune = tuneById(id);
+		tuneId = tune.id;
+		setTune(tune);
+		remember(TUNE_KEY, tune.id);
 	}
 
 	/** Sound effects volume (0 to 100). Sliding to 0 switches sound off. */
@@ -762,6 +780,11 @@
 			// Storage unavailable: keep the default (music on).
 		}
 		setMusicEnabled(musicOn);
+		try {
+			chooseTune(localStorage.getItem(TUNE_KEY) ?? DEFAULT_TUNE.id);
+		} catch {
+			// Storage unavailable: keep the default tune.
+		}
 		soundVolume = storedLevel(SOUND_VOLUME_KEY, 80);
 		musicVolume = storedLevel(MUSIC_VOLUME_KEY, 50);
 		setSoundVolume(soundVolume / 100);
@@ -1189,6 +1212,30 @@
 										musicVolume,
 										setMusicLevel
 									)}
+									<div
+										class="flex min-h-11 w-full items-center gap-2 text-sm"
+										role="group"
+										aria-labelledby="tune-label"
+									>
+										<span id="tune-label">Tune</span>
+										<span class="ml-auto flex gap-2">
+											{#each TUNES as tune (tune.id)}
+												<button
+													type="button"
+													aria-pressed={tuneId === tune.id}
+													class="min-h-9 rounded border-2 px-2 font-semibold {tuneId === tune.id
+														? 'border-adenine bg-adenine text-slate-900'
+														: 'border-slate-500 hover:border-adenine'}"
+													onclick={() => {
+														click();
+														chooseTune(tune.id);
+													}}
+												>
+													{tune.name}
+												</button>
+											{/each}
+										</span>
+									</div>
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
 								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
