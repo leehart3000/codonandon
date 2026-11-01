@@ -104,7 +104,14 @@ pnpm exec wrangler d1 execute codonandon --remote --command "DELETE FROM scores 
 
 Every push to `main` runs CI (`.github/workflows/ci.yml`): type checks, linting, tests and a secret scan. If they all pass, and the repository variable `DEPLOY_ENABLED` is `true`, it deploys to Cloudflare using the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
 
-The start screen shows the version (the short git commit) of the build you're running.
+The start screen shows the version of the build you're running: the last release tag, how many commits since it, and the commit, such as `v0.1.0+1/c49aa02` (just `v0.1.0/c49aa02` for the tagged release itself). To mark a release, tag it and push the tag:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The next deploy (the next push to `main`) then shows the new version.
 
 ## Project structure
 

@@ -4,15 +4,28 @@ import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
+import { formatVersion } from './src/lib/build-version';
 
-/** Name each build after its git commit (GitHub provides it in CI), so you can tell versions apart. */
-function buildVersion(): string {
-	if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+/** A git command's output, or null if it fails (for example, no tags yet). */
+function git(command: string): string | null {
 	try {
-		return execSync('git rev-parse --short=7 HEAD').toString().trim();
+		return execSync(`git ${command}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+			.toString()
+			.trim();
 	} catch {
-		return Date.now().toString();
+		return null;
 	}
+}
+
+/**
+ * Name each build after the last release tag and its git commit, such as "v0.1.0+1/c49aa02",
+ * so you can tell versions apart. Without a tag (or git), fall back to the commit alone.
+ */
+function buildVersion(): string {
+	const described = git('describe --tags --long --abbrev=7');
+	if (described) return formatVersion(described);
+	if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+	return git('rev-parse --short=7 HEAD') ?? Date.now().toString();
 }
 
 export default defineConfig({
