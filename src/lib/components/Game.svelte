@@ -1000,6 +1000,26 @@
 	</div>
 {/snippet}
 
+<!-- On the Settings and pause screens. A new tune starts playing straight away, or on resuming. -->
+{#snippet tuneSelect()}
+	<label class="flex min-h-11 w-full items-center gap-3 text-sm">
+		<!-- The width of a switch, so "Tune" lines up with the labels above. -->
+		<span class="w-12 shrink-0" aria-hidden="true"></span>
+		Tune
+		<select
+			class="ml-auto min-h-9 rounded border-2 border-adenine bg-slate-900 px-2 font-semibold"
+			onchange={(event) => {
+				click();
+				chooseTune(event.currentTarget.value);
+			}}
+		>
+			{#each TUNES as tune (tune.id)}
+				<option value={tune.id} selected={tuneId === tune.id}>{tune.name}</option>
+			{/each}
+		</select>
+	</label>
+{/snippet}
+
 {#snippet pieceGrid(piece: Piece, size: number)}
 	<span
 		class="grid w-fit gap-px"
@@ -1213,22 +1233,7 @@
 										setMusicLevel
 									)}
 									{@render toggle('Show tips in game', showTips, () => setShowTips(!showTips))}
-									<label class="flex min-h-11 w-full items-center gap-3 text-sm">
-										<!-- The width of a switch, so "Tune" lines up with the labels above. -->
-										<span class="w-12 shrink-0" aria-hidden="true"></span>
-										Tune
-										<select
-											class="ml-auto min-h-9 rounded border-2 border-adenine bg-slate-900 px-2 font-semibold"
-											onchange={(event) => {
-												click();
-												chooseTune(event.currentTarget.value);
-											}}
-										>
-											{#each TUNES as tune (tune.id)}
-												<option value={tune.id} selected={tuneId === tune.id}>{tune.name}</option>
-											{/each}
-										</select>
-									</label>
+									{@render tuneSelect()}
 								</div>
 								<div class="flex w-full max-w-56 flex-col gap-2">
 									{@render menuButton('Main menu', () => (screen = 'home'))}
@@ -1490,6 +1495,7 @@
 								setMusicLevel
 							)}
 							{@render toggle('Show tips', showTips, () => setShowTips(!showTips))}
+							{@render tuneSelect()}
 						</div>
 						<div class="flex w-full max-w-56 flex-col gap-2">
 							<button
